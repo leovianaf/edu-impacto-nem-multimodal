@@ -1,0 +1,1 @@
+## Finalizando a camada Gold, enviará os dados do DuckDB para o MongoDB e Neo4j, para que possam ser utilizados em análises e visualizações.

@@ -1,0 +1,7 @@
+edu_impacto_nem_multimodal:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ./edu_impacto_nem_multimodal.duckdb
+      threads: 4

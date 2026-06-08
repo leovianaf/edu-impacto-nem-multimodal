@@ -1,0 +1,22 @@
+name: "edu_impacto_nem_multimodal"
+version: "1.0.0"
+config-version: 2
+
+profile: "edu_impacto_nem_multimodal"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  edu_impacto_nem_multimodal:
+    staging:
+      +materialized: view
+    serving:
+      +materialized: table

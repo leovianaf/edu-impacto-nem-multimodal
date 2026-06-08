@@ -1,0 +1,23 @@
+# Environment and settings files to ignore
+venv/
+.venv/
+*settings.json
+.vscode/
+
+# Data files and outputs logs
+*.csv
+*.xlsx
+*.duckdb
+*.duckdb.wal
+logs/
+
+# Data folders
+data/raw/*
+!data/raw/.gitkeep
+!seeds/*
+!docs/*
+
+# DBT build and dependencies folders
+target/
+dbt_packages/
+dbt_modules/

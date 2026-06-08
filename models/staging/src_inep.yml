@@ -1,0 +1,75 @@
+version: 2
+
+sources:
+  - name: raw_censo_escolar_2019
+    meta:
+      external_location: "./data/raw/censo_escolar_2019/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2019
+
+  - name: raw_censo_escolar_2020
+    meta:
+      external_location: "./data/raw/censo_escolar_2020/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2020
+
+  - name: raw_censo_escolar_2021
+    meta:
+      external_location: "./data/raw/censo_escolar_2021/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2021
+
+  - name: raw_censo_escolar_2022
+    meta:
+      external_location: "./data/raw/censo_escolar_2022/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2022
+
+  - name: raw_censo_escolar_2023
+    meta:
+      external_location: "./data/raw/censo_escolar_2023/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2023
+      - name: suplemento_cursos_tecnicos_2023
+
+  - name: raw_censo_escolar_2024
+    meta:
+      external_location: "./data/raw/censo_escolar_2024/{name}.csv.gz"
+    tables:
+      - name: microdados_ed_basica_2024
+      - name: suplemento_cursos_tecnicos_2024
+
+  - name: raw_censo_escolar_2025
+    meta:
+      external_location: "./data/raw/censo_escolar_2025/{name}.csv.gz"
+    tables:
+      - name: Tabela_Curso_Tecnico_2025
+      - name: Tabela_Docente_2025
+      - name: Tabela_Escola_2025
+      - name: Tabela_Gestor_Escolar_2025
+      - name: Tabela_Matricula_2025
+      - name: Tabela_Turma_2025
+
+  - name: raw_saeb_2019
+    meta:
+      external_location: "./data/raw/saeb_2019/{name}.csv.gz"
+    tables:
+      - name: saeb_resultados_municipios_2019
+
+  - name: raw_saeb_2021
+    meta:
+      external_location: "./data/raw/saeb_2021/{name}.csv.gz"
+    tables:
+      - name: saeb_resultados_municipios_2021
+
+  - name: raw_saeb_2023
+    meta:
+      external_location: "./data/raw/saeb_2023/{name}.csv.gz"
+    tables:
+      - name: saeb_resultados_municipios_2023
+
+  - name: raw_ibge_censo_2022_alfabetizacao_social
+    meta:
+      external_location: "./data/raw/{name}.csv.gz"
+    tables:
+      - name: br_ibge_censo_2022_alfabetizacao_grupo_idade_sexo_raca
