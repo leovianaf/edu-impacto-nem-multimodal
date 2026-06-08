@@ -1,0 +1,209 @@
+# Impacto Educacional do Novo Ensino Médio Multimodal
+
+Repositório técnico para ingestão, padronização e análise de dados educacionais e socioeconômicos com foco no impacto do Novo Ensino Médio (NEM) no Brasil. O projeto cruza resultados agregados do SAEB 2019, 2021 e 2023 com microdados do Censo Escolar, indicadores de PIB municipal e dados de alfabetização do Censo IBGE, com o objetivo de montar um dataset que possibilite investigar correlações entre implementação do NEM, contexto socioeconômico e desempenho acadêmico, além de outros problemas analíticos derivados.
+
+O principal desafio de engenharia de dados deste trabalho foi contornar a mascaragem dos códigos geográficos nos microdados do SAEB. Para isso, o pipeline foi estruturado para utilizar planilhas agregadas de resultados por município e reconciliá-las com bases auxiliares e microdados do Censo Escolar, preservando rastreabilidade, reprodutibilidade, respeito à LGPD e consistência analítica.
+
+## Objetivo Analítico
+
+O projeto busca responder, entre outras, às seguintes questões:
+
+- Existe correlação entre a implementação do NEM e a variação de desempenho acadêmico observada no SAEB?
+- Como indicadores socioeconômicos municipais, como PIB e alfabetização, se relacionam com os resultados educacionais?
+- Quais sinais estruturais emergem ao integrar diferentes fontes públicas em uma camada analítica única?
+
+## Stack Tecnológica
+
+| Camada                        | Tecnologia      | Finalidade                                                                                        |
+| ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| Ingestão e preparação         | Python          | Automação da leitura, conversão e compressão dos arquivos brutos                                  |
+| Manipulação tabular           | Pandas          | Limpeza, transformação inicial e exportação dos datasets                                          |
+| Leitura de planilhas binárias | Pyxlsb          | Extração de dados `.xlsb` do SAEB                                                                 |
+| Transformação analítica       | dbt             | Padronização, modelagem e versionamento das transformações                                        |
+| Engine analítica              | DuckDB          | Execução local do pipeline SQL e persistência analítica                                           |
+| Camada serving                | MongoDB e Neo4j | Persistência da camada final para análises multimodais, consultas documentais e relações em grafo |
+
+## Arquitetura do Pipeline
+
+O fluxo de dados foi desenhado para isolar claramente ingestão, padronização e consumo analítico.
+
+1. **Extração e conversão dos dados brutos**
+   - Os arquivos originais do SAEB, do Censo Escolar e do Censo IBGE 2022 são armazenados em `data/raw/`.
+   - Scripts Python em `scripts/` convertem arquivos `.xlsx` e `.xlsb` para `.csv.gz`, reduzindo custo de armazenamento e simplificando leitura pelo dbt/DuckDB.
+
+2. **Padronização e definição de fontes**
+   - As fontes raw são registradas em `models/staging/src_inep.yml`.
+   - O dbt referencia diretamente os arquivos comprimidos por ano, mantendo a camada de staging desacoplada da origem manual.
+
+3. **Transformação e enriquecimento**
+   - A modelagem em `models/` organiza a transformação por camadas (`staging`, `intermediate`, `serving`).
+   - Seeds em `seeds/` fornecem dados auxiliares estruturados, como códigos municipais, PIB e bases do IBGE.
+
+4. **Persistência e consumo analítico**
+   - A camada final consolida insumos para análise estatística, exploração em notebooks, visualizações e consumo multimodal.
+   - Os dados da camada serving são enviados para imagens MongoDB e Neo4j.
+
+## Como Rodar
+
+### 1. Pré-requisitos
+
+- Python 3.10+
+- MongoDB
+- Neo4j
+
+### 2. Criar e ativar ambiente virtual
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 3. Disponibilizar os dados brutos
+
+[**Link para download dos arquivos raw**](https://drive.google.com/file/d/1vudFbQ9QdjMvLoF5VEK0Wlsy9PPdaWAt/view?usp=sharing)
+
+**Fontes originais dos dados raw**
+
+- Resultados SAEB (2019, 2021, 2023): [Site INEP Resultados SAEB](https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/saeb/resultados)
+- Censo Escolar (2019-2025): [Microdados INEP Censo Escolar](https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-abertos/microdados/censo-escolar)
+- PIB Municipal (2019-2023): [SIDRA IBGE PIB](https://sidra.ibge.gov.br/tabela/5938/)
+- Censo IBGE / alfabetização: [Censo 2022 - Alfabetização por Sexo, Raça e Grupo de Idade](https://basedosdados.org/dataset/08a1546e-251f-4546-9fe0-b1e6ab2b203d?table=cf9537b5-6198-455f-a8b0-7c762e94d79c)
+- Censo IBGE / municípios: [Censo 2022 - Municípios](https://basedosdados.org/dataset/08a1546e-251f-4546-9fe0-b1e6ab2b203d?table=707fd42e-95e0-4856-922f-fcbb55db913a)
+- Censo IBGE / diretórios: [Censo 2022 - Diretórios Brasileiros](https://basedosdados.org/dataset/33b49786-fb5f-496f-bb7c-9811c985af8e?table=dffb65ac-9df9-4151-94bf-88c45bfcb056)
+
+Para o PIB municipal, os filtros aplicados na extração foram:
+
+- Produto Interno Bruto a preços correntes (Mil Reais);
+- Ano de referência entre 2019 e 2023;
+- Recorte municipal completo, todos os 5570 municípios brasileiros.
+
+Depois do download, organize os arquivos dentro de `data/raw/` conforme a convenção usada pelos modelos dbt, por exemplo:
+
+```text
+data/raw/
+├── censo_escolar_2019/
+├── censo_escolar_2020/
+├── censo_escolar_2021/
+├── censo_escolar_2022/
+├── censo_escolar_2023/
+├── censo_escolar_2024/
+├── censo_escolar_2025/
+├── saeb_2019/
+├── saeb_2021/
+├── saeb_2023/
+└── br_ibge_censo_2022_alfabetizacao_grupo_idade_sexo_raca.csv.gz
+```
+
+### 4. Converter planilhas para `.csv.gz`
+
+O script [scripts/converter_saeb.py](scripts/converter_saeb.py) realiza a leitura de planilhas do SAEB e exporta arquivos compactados.
+
+Antes de executar, ajuste no script:
+
+- `caminho_arquivo`
+- `caminho_saida_dados`
+- `caminho_saida_dicionario`
+- Ano e formato correspondente (`.xlsx` ou `.xlsb`)
+
+Execução:
+
+```bash
+python scripts/converter_saeb.py
+```
+
+### 5. Executar seeds e modelos dbt
+
+O perfil já está configurado para usar um banco local DuckDB em `./edu_impacto_nem_multimodal.duckdb`.
+
+```bash
+dbt seed --profiles-dir .
+dbt run --profiles-dir .
+```
+
+Se desejar validar o pipeline:
+
+```bash
+dbt test --profiles-dir .
+```
+
+### 6. Publicar a camada serving em MongoDB e Neo4j
+
+Após a materialização da camada serving no DuckDB, a etapa seguinte da arquitetura consiste na publicação dos dados para as bases de consumo final.
+
+```bash
+python scripts/load_gold_nosql.py
+```
+
+## Estrutura do Projeto
+
+```text
+edu-impacto-nem-multimodal/
+├── data/
+│   └── raw/
+│       ├── censo_escolar_2019/             # Arquivos brutos do Censo Escolar por ano
+│       ├── censo_escolar_2020/
+│       ├── censo_escolar_2021/
+│       ├── censo_escolar_2022/
+│       ├── censo_escolar_2023/
+│       ├── censo_escolar_2024/
+│       ├── censo_escolar_2025/
+│       ├── saeb_2019/                      # Resultados agregados do SAEB por município
+│       ├── saeb_2021/
+│       ├── saeb_2023/
+│       └── .gitkeep
+├── docs/
+│   ├── Dicionario_Censo_Escolar_2019.xlsx
+│   ├── Dicionario_Censo_Escolar_2020.xlsx
+│   ├── Dicionario_Censo_Escolar_2021.xlsx
+│   ├── Dicionario_Censo_Escolar_2022.xlsx
+│   ├── Dicionario_Censo_Escolar_2023.xlsx
+│   ├── Dicionario_Censo_Escolar_2024.xlsx
+│   ├── Dicionario_Censo_Escolar_2025.xlsx
+│   └── Dicionario_Resultados_Saeb_2023.csv
+├── models/
+│   ├── staging/                            # Definição de fontes e padronização inicial
+│   │   └── src_inep.yml
+│   ├── intermediate/                       # Regras intermediárias de negócio e reconciliação
+│   └── serving/                            # Camada final para consumo analítico e publicação
+├── scripts/
+│   ├── converter_saeb.py                   # Conversão de planilhas SAEB para CSV compactado
+│   └── load_gold_nosql.py                  # Publicação da camada serving em MongoDB e Neo4j
+├── seeds/
+│   ├── br_bd_diretorios_brasil_municipio.csv
+│   ├── br_ibge_censo_2022_municipio.csv
+│   └── ibge_pib_municipios_clean.csv
+├── dbt_project.yml                         # Configuração do projeto dbt
+├── profiles.yml                            # Perfil local do DuckDB
+├── requirements.txt                        # Dependências Python
+├── LICENSE                                 # Licença MIT
+└── README.md
+```
+
+## Convenções de Dados
+
+| Diretório              | Papel no pipeline                                              |
+| ---------------------- | -------------------------------------------------------------- |
+| `data/raw/`            | Armazenamento dos dados brutos, preferencialmente em `.csv.gz` |
+| `scripts/`             | Automação da ingestão, conversão e publicação da camada final  |
+| `models/staging/`      | Leitura de fontes e normalização inicial                       |
+| `models/intermediate/` | Regras de integração, reconciliação e enriquecimento           |
+| `models/serving/`      | Tabelas finais para análise e envio às bases de consumo        |
+| `seeds/`               | Tabelas auxiliares versionadas no repositório                  |
+| `docs/`                | Dicionários e documentação de apoio                            |
+
+## Desafio Técnico Central
+
+Os microdados do SAEB não disponibilizam de forma aberta todos os identificadores geográficos necessários para um cruzamento municipal direto em determinadas análises. A estratégia adotada neste repositório consiste em:
+
+- utilizar planilhas de resultados agregados do SAEB por município;
+- padronizar essas saídas em formato tabular comprimido;
+- combinar os resultados com microdados do Censo Escolar e bases auxiliares territoriais;
+- enriquecer a camada analítica com indicadores socioeconômicos municipais.
+
+Essa abordagem permite construir uma base consistente para análises correlacionais sem depender exclusivamente dos microdados mascarados.
+
+## Licença
+
+Este projeto está licenciado sob a [MIT License](LICENSE).
