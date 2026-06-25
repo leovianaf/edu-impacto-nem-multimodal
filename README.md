@@ -45,9 +45,12 @@ O fluxo de dados foi desenhado para isolar claramente ingestão, padronização 
 
 ## Como Rodar
 
+> Execute os comandos dbt a partir da raiz do repositório. Os modelos de staging leem arquivos locais com caminhos relativos, como `data/raw/...` e `seeds/...`; se o comando for executado de dentro de `scripts/`, o DuckDB procurará esses caminhos dentro de `scripts/` e retornará erro de arquivo não encontrado.
+
 ### 1. Pré-requisitos
 
 - Python 3.10+
+- dbt com adapter DuckDB, instalado via `requirements.txt`
 - MongoDB
 - Neo4j
 
@@ -63,6 +66,8 @@ pip install -r requirements.txt
 ### 3. Disponibilizar os dados brutos
 
 [**Link para download dos arquivos raw**](https://drive.google.com/file/d/1vudFbQ9QdjMvLoF5VEK0Wlsy9PPdaWAt/view?usp=sharing)
+
+Os dados brutos não devem ser versionados no Git. Eles devem ficar apenas localmente em `data/raw/`, que está ignorado no `.gitignore`. As seeds em `seeds/` e os dicionários em `docs/` permanecem versionados porque são arquivos auxiliares menores e necessários para reprodutibilidade.
 
 **Fontes originais dos dados raw**
 
@@ -84,15 +89,27 @@ Depois do download, organize os arquivos dentro de `data/raw/` conforme a conven
 ```text
 data/raw/
 ├── censo_escolar_2019/
+│   └── microdados_ed_basica_2019.csv.gz
 ├── censo_escolar_2020/
+│   └── microdados_ed_basica_2020.csv.gz
 ├── censo_escolar_2021/
+│   └── microdados_ed_basica_2021.csv.gz
 ├── censo_escolar_2022/
+│   └── microdados_ed_basica_2022.csv.gz
 ├── censo_escolar_2023/
+│   └── microdados_ed_basica_2023.csv.gz
 ├── censo_escolar_2024/
+│   └── microdados_ed_basica_2024.csv.gz
 ├── censo_escolar_2025/
+│   ├── Tabela_Escola_2025.csv.gz
+│   ├── Tabela_Matricula_2025.csv.gz
+│   └── Tabela_Curso_Tecnico_2025.csv.gz
 ├── saeb_2019/
+│   └── saeb_resultados_municipios_2019.csv.gz
 ├── saeb_2021/
+│   └── saeb_resultados_municipios_2021.csv.gz
 ├── saeb_2023/
+│   └── saeb_resultados_municipios_2023.csv.gz
 └── br_ibge_censo_2022_alfabetizacao_grupo_idade_sexo_raca.csv.gz
 ```
 
@@ -113,22 +130,66 @@ Execução:
 python scripts/converter_saeb.py
 ```
 
-### 5. Executar seeds e modelos dbt
+### 5. Executar seeds e staging no dbt
 
 O perfil já está configurado para usar um banco local DuckDB em `./edu_impacto_nem_multimodal.duckdb`.
 
+Carregue as seeds auxiliares:
+
 ```bash
 dbt seed --profiles-dir .
-dbt run --profiles-dir .
 ```
 
-Se desejar validar o pipeline:
+Rode apenas a camada staging:
 
 ```bash
+dbt run --select staging --profiles-dir .
+```
+
+Valide a camada staging:
+
+```bash
+dbt test --select staging --profiles-dir .
+```
+
+Para inspecionar as tabelas/views da staging com Pandas:
+
+```bash
+python scripts/auditar_staging_pandas.py --metadata-only
+```
+
+Também é possível auditar uma tabela específica com amostra, contagem de linhas e resumo de nulos:
+
+```bash
+python scripts/auditar_staging_pandas.py --table stg_ibge_pib_municipio --sample-size 10 --with-row-count --with-null-summary
+```
+
+Esse script localiza o banco DuckDB na raiz do projeto automaticamente, então também pode ser executado de dentro da pasta `scripts/`.
+
+Resultado esperado da staging no estado atual do projeto:
+
+- 9 modelos materializados como views;
+- 116 testes passando;
+- banco local DuckDB criado em `edu_impacto_nem_multimodal.duckdb`.
+
+Para rodar todo o projeto dbt disponível:
+
+```bash
+dbt run --profiles-dir .
 dbt test --profiles-dir .
 ```
 
-### 6. Publicar a camada serving em MongoDB e Neo4j
+### 6. Documentação da staging
+
+A documentação das decisões da staging está em [docs/staging_decisoes.md](docs/staging_decisoes.md). Ela registra:
+
+- quais tabelas fonte alimentam cada staging;
+- quais features foram preservadas;
+- quais colunas foram renomeadas ou derivadas;
+- por que o Censo Escolar 2025 foi separado em tabelas próprias;
+- quais testes de qualidade sustentam a passagem para a camada intermediária.
+
+### 7. Publicar a camada serving em MongoDB e Neo4j
 
 Após a materialização da camada serving no DuckDB, a etapa seguinte da arquitetura consiste na publicação dos dados para as bases de consumo final.
 

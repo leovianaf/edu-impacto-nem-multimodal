@@ -44,6 +44,42 @@ No arquivo de 2023, o perfil numérico calculado no notebook mostra:
 
 Esses campos devem ser tratados como `proficiência` ou `media_saeb`, e não como `nota_prova`. Uma eventual conversão para escala 0 a 10 seria uma métrica derivada e comunicacional, não uma correção do dado bruto.
 
+As colunas `nivel_*` do SAEB indicam o percentual de alunos em cada faixa oficial de proficiência. Elas complementam as médias porque mostram a distribuição do desempenho: duas redes podem ter média parecida, mas uma pode concentrar mais alunos nos níveis baixos enquanto outra tem mais alunos nos níveis intermediários ou altos.
+
+Para o ensino médio, os sufixos mais importantes são:
+
+- `LP12` e `MT12`: 3ª/4ª série do ensino médio tradicional;
+- `LP13` e `MT13`: 3ª/4ª série do ensino médio integrado;
+- `LP14` e `MT14`: 3ª/4ª série do ensino médio tradicional ou integrado, de forma agregada.
+
+As faixas de Língua Portuguesa no ensino médio (`nivel_*_LP12`, `nivel_*_LP13` e `nivel_*_LP14`) vão de `nivel_0` a `nivel_8`:
+
+- `nivel_0`: desempenho menor que 225;
+- `nivel_1`: desempenho maior ou igual a 225 e menor que 250;
+- `nivel_2`: desempenho maior ou igual a 250 e menor que 275;
+- `nivel_3`: desempenho maior ou igual a 275 e menor que 300;
+- `nivel_4`: desempenho maior ou igual a 300 e menor que 325;
+- `nivel_5`: desempenho maior ou igual a 325 e menor que 350;
+- `nivel_6`: desempenho maior ou igual a 350 e menor que 375;
+- `nivel_7`: desempenho maior ou igual a 375 e menor que 400;
+- `nivel_8`: desempenho maior ou igual a 400.
+
+As faixas de Matemática no ensino médio (`nivel_*_MT12`, `nivel_*_MT13` e `nivel_*_MT14`) vão de `nivel_0` a `nivel_10`:
+
+- `nivel_0`: desempenho menor que 225;
+- `nivel_1`: desempenho maior ou igual a 225 e menor que 250;
+- `nivel_2`: desempenho maior ou igual a 250 e menor que 275;
+- `nivel_3`: desempenho maior ou igual a 275 e menor que 300;
+- `nivel_4`: desempenho maior ou igual a 300 e menor que 325;
+- `nivel_5`: desempenho maior ou igual a 325 e menor que 350;
+- `nivel_6`: desempenho maior ou igual a 350 e menor que 375;
+- `nivel_7`: desempenho maior ou igual a 375 e menor que 400;
+- `nivel_8`: desempenho maior ou igual a 400 e menor que 425;
+- `nivel_9`: desempenho maior ou igual a 425 e menor que 450;
+- `nivel_10`: desempenho maior ou igual a 450.
+
+Portanto, a staging do SAEB deve preservar `MEDIA_*` e `nivel_*`. Na análise final, as médias e níveis com sufixos `12`, `13` e `14` devem ser priorizados para responder perguntas relacionadas ao Novo Ensino Médio, enquanto 5º e 9º ano podem funcionar como contexto da trajetória educacional do município.
+
 O Censo Escolar 2025 exige atenção especial: ele não segue o mesmo desenho de arquivo único largo dos anos anteriores. A modelagem deve respeitar as tabelas temáticas e só integrar depois de entender a granularidade de cada uma. O notebook encontrou 214.192 linhas na tabela de escola, 178.766 na de matrícula, 178.772 nas de turma e docente, 180.540 na de gestor escolar e 32.136 na de curso técnico.
 
 A base IBGE 2022 de alfabetização tem 779.800 linhas, 6 colunas e granularidade por município, raça/cor, sexo, grupo de idade e condição de alfabetização.
@@ -92,6 +128,49 @@ Na base IBGE 2022, `populacao` tem 32,07% de nulos. Como a base cruza município
 
 A recomendação é preservar esses nulos na staging. Qualquer imputação, filtro analítico ou agregação deve acontecer em camadas posteriores.
 
+## Como ficaria o antes e depois
+
+Com as bases disponíveis, o projeto consegue montar uma análise antes/depois em nível observacional. A comparação mais segura é municipal, porque o SAEB usado no projeto está em resultados agregados por município e pode ser integrado com Censo Escolar, PIB municipal e indicadores do IBGE por `id_municipio`.
+
+O recorte sugerido é:
+
+- **Antes do NEM:** usar SAEB 2019 como principal linha de base pré-implementação e Censo Escolar 2019, 2020 e 2021 para descrever a estrutura escolar anterior ou em transição.
+- **Transição:** tratar 2021 e 2022 com cuidado, porque 2021 ainda carrega efeitos da pandemia e 2022 representa um período de implementação desigual entre redes.
+- **Depois do NEM:** usar SAEB 2023 como primeiro resultado pós-implementação mais consolidada e Censo Escolar 2023, 2024 e 2025 para observar mudanças na oferta, nas matrículas e na estrutura do ensino médio.
+
+Essa análise deve ser comunicada como correlação ou associação, não como prova causal direta. A base final poderá indicar se municípios ou redes com maior sinal de implementação do NEM apresentaram maior, menor ou nenhuma variação associada nas proficiências do SAEB.
+
+Para viabilizar essa leitura, a camada final precisa construir:
+
+- uma unidade de análise clara, preferencialmente `id_municipio + ano + recortes` para o primeiro ciclo;
+- indicadores de desempenho comparáveis no tempo, como médias de proficiência em Língua Portuguesa e Matemática;
+- indicadores de variação, como `delta_media_saeb_2023_2019`;
+- proxies de implementação do NEM a partir do Censo Escolar, como matrículas no ensino médio, ensino médio integral, oferta técnica/profissional e mudanças na oferta;
+- indicadores socioeconômicos municipais, como PIB, população e alfabetização;
+- flags de período, como `pre_nem`, `transicao` e `pos_nem`;
+- documentação das limitações, principalmente pandemia, granularidade municipal do SAEB, ausência de causalidade e diferenças de implementação entre redes.
+
+## TODO para seguir para staging
+
+- [X] Definir a unidade inicial da análise antes/depois: município, escola ou rede. Para reduzir risco, começar por município.
+- [X] Definir oficialmente os períodos analíticos: `pre_nem`, `transicao` e `pos_nem`.
+- [X] Escolher quais colunas do SAEB entram na staging como indicadores de proficiência e quais recortes serão preservados.
+- [X] Escolher quais variáveis do Censo Escolar serão usadas como proxies de implementação do NEM.
+- [X] Validar a granularidade de cada base antes do join, especialmente Censo Escolar 2025 e cursos técnicos.
+- [X] Criar staging do SAEB municipal preservando a escala original de proficiência.
+- [X] Criar staging do Censo Escolar 2019-2024 mantendo granularidade escola/ano.
+- [X] Criar staging do Censo Escolar 2025 separando escola, matrícula e curso técnico conforme a granularidade.
+- [X] Criar staging do PIB municipal validando cobertura, anos disponíveis, separador, tipos numéricos e relacionamento com `id_municipio`.
+- [X] Criar staging do IBGE Censo municipal preservando indicadores demográficos e taxa de alfabetização.
+- [X] Criar staging do IBGE de alfabetização detalhada preservando nulos estruturais e categorias originais.
+- [X] Criar staging do diretório municipal como dimensão territorial e referência para testes.
+- [X] Padronizar chaves territoriais como texto, principalmente `id_municipio`, `co_municipio`, `co_uf` e `sg_uf`.
+- [X] Classificar nulos entre estruturais e problemáticos antes de qualquer imputação.
+- [X] Definir testes dbt mínimos: `not_null`, `unique` composto, `accepted_values`, faixas numéricas e relacionamento com a seed municipal.
+- [X] Documentar regras de qualidade: completude das chaves, validade dos domínios, unicidade por granularidade, compatibilidade territorial, coerência numérica e rastreabilidade da fonte.
+- [ ] Depois da staging, criar uma camada intermediária municipal com indicadores comparáveis por ano.
+- [ ] Na camada final, calcular deltas antes/depois e cruzar desempenho SAEB com proxies do NEM e indicadores socioeconômicos.
+
 ## Decisões para staging
 
 Modelos candidatos:
@@ -138,4 +217,4 @@ Esses gráficos ajudam a encontrar assimetrias, valores extremos e concentraçã
 
 ## Conclusão
 
-O EDA mostra que a camada raw está pronta para iniciar a modelagem staging, desde que a modelagem trate explicitamente as diferenças de layout entre anos, preserve nulos estruturais e mantenha testes de integridade para as chaves de integração. O caminho mais seguro é começar pelo SAEB municipal e pelo Censo Escolar em granularidade de escola/ano, usando `CO_MUNICIPIO` como eixo de integração com bases territoriais e socioeconômicas.
+O EDA mostrou que a camada raw estava apta para a modelagem staging, desde que a modelagem tratasse explicitamente as diferenças de layout entre anos, preservasse nulos estruturais e mantivesse testes de integridade para as chaves de integração. A staging foi criada seguindo esse caminho: SAEB municipal, Censo Escolar em granularidade escola/ano, Censo Escolar 2025 separado por tabelas temáticas, PIB municipal em formato longo, IBGE municipal, alfabetização detalhada e diretório municipal. As decisões finais da staging estão documentadas em `docs/staging_decisoes.md`.

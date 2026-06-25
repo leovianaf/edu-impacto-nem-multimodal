@@ -3,9 +3,14 @@ venv/
 .venv/
 *settings.json
 .vscode/
+__pycache__/
+*.pyc
 
-# Data files and outputs logs
+# Local data files, database outputs and logs
 *.csv
+*.csv.gz
+*.parquet
+*.zip
 *.xlsx
 *.duckdb
 *.duckdb.wal
@@ -13,6 +18,8 @@ logs/
 
 # Data folders
 data/raw/*
+data/processed/*
+data/interim/*
 !data/raw/.gitkeep
 !seeds/*
 !docs/*

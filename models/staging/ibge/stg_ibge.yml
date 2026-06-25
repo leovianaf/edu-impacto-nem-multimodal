@@ -1,0 +1,144 @@
+version: 2
+
+models:
+  - name: stg_ibge_censo_municipio
+    description: >
+      Indicadores municipais do Censo IBGE 2022, com granularidade id_municipio.
+      Preserva população, área, taxa de alfabetização, idade mediana, razão de sexo,
+      índice de envelhecimento e populações indígena/quilombola. Esta tabela é
+      usada como contexto demográfico e social municipal para análises com SAEB,
+      Censo Escolar e PIB.
+    columns:
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, preservado como texto.
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+
+      - name: sigla_uf
+        description: Sigla da unidade federativa.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO]
+
+      - name: domicilios
+        description: Quantidade de domicílios no município.
+        tests:
+          - not_null
+
+      - name: populacao
+        description: População total do município no Censo 2022.
+        tests:
+          - not_null
+
+      - name: area
+        description: Área territorial do município.
+        tests:
+          - not_null
+
+      - name: taxa_alfabetizacao
+        description: Taxa de alfabetização municipal no Censo 2022.
+        tests:
+          - not_null
+
+      - name: idade_mediana
+        description: Idade mediana da população do município.
+
+      - name: razao_sexo
+        description: Razão de sexo do município.
+
+      - name: indice_envelhecimento
+        description: Índice de envelhecimento do município.
+
+      - name: populacao_indigena
+        description: População indígena do município.
+
+      - name: populacao_indigena_terra_indigena
+        description: População indígena em terra indígena no município.
+
+      - name: populacao_quilombola
+        description: População quilombola do município.
+
+      - name: populacao_quilombola_territorio_quilombola
+        description: População quilombola em território quilombola no município.
+
+  - name: stg_ibge_pib_municipio
+    description: >
+      PIB municipal em formato longo, com granularidade id_municipio + ano.
+      A origem é a seed seeds/ibge_pib_municipios_clean.csv, que já chega ao
+      repositório como base auxiliar limpa; a limpeza anterior não está
+      automatizada no pipeline atual. O arquivo contém rodapé/metadados da
+      extração original, por isso a staging filtra apenas linhas cujo
+      id_municipio possui 7 dígitos.
+    columns:
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, preservado como texto.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+
+      - name: nome_municipio
+        description: Nome do município conforme arquivo de PIB.
+
+      - name: ano
+        description: Ano de referência do PIB municipal.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2019, 2020, 2021, 2022, 2023]
+
+      - name: pib
+        description: Produto Interno Bruto municipal a preços correntes, em mil reais, preservado como valor numérico.
+        tests:
+          - not_null
+
+  - name: stg_ibge_alfabetizacao_detalhada
+    description: >
+      Base detalhada de alfabetização do Censo IBGE 2022, preservada na
+      granularidade id_municipio + cor_raca + sexo + grupo_idade + alfabetizacao.
+      A coluna populacao pode ser nula por combinações estruturais sem população
+      divulgada ou aplicável; esses nulos são preservados na staging e não são
+      imputados.
+    columns:
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, preservado como texto.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+
+      - name: cor_raca
+        description: Categoria de cor/raça conforme Censo IBGE.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Amarela, Branca, Indígena, Parda, Preta]
+
+      - name: sexo
+        description: Categoria de sexo conforme Censo IBGE.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Homens, Mulheres]
+
+      - name: grupo_idade
+        description: Grupo etário da população.
+        tests:
+          - not_null
+
+      - name: alfabetizacao
+        description: Condição de alfabetização da população do grupo.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Alfabetizadas, Não alfabetizadas]
+
+      - name: populacao
+        description: População da combinação município, cor/raça, sexo, grupo de idade e alfabetização. Nulos são preservados como estruturais.
