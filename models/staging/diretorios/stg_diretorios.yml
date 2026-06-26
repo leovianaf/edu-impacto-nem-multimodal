@@ -1,0 +1,61 @@
+version: 2
+
+models:
+  - name: stg_diretorios_municipio
+    description: >
+      Dimensão territorial municipal a partir da seed br_bd_diretorios_brasil_municipio.
+      Mantém identificadores, nome do município, UF, região e centroide. É usada
+      como referência territorial para testes de relacionamento e para enriquecer
+      análises municipais.
+    columns:
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, preservado como texto.
+        tests:
+          - not_null
+          - unique
+
+      - name: nome_municipio
+        description: Nome do município.
+        tests:
+          - not_null
+
+      - name: id_uf
+        description: Código da unidade federativa, preservado como texto.
+        tests:
+          - not_null
+
+      - name: sigla_uf
+        description: Sigla da unidade federativa.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO]
+
+      - name: nome_uf
+        description: Nome da unidade federativa.
+        tests:
+          - not_null
+
+      - name: nome_regiao
+        description: Nome da região brasileira.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Centro-Oeste, Nordeste, Norte, Sudeste, Sul]
+
+      - name: capital_uf
+        description: Indicador de capital da UF.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+
+      - name: amazonia_legal
+        description: Indicador de município pertencente à Amazônia Legal.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+
+      - name: centroide
+        description: Ponto geográfico do centroide municipal em formato textual WKT.
+        tests:
+          - not_null

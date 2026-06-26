@@ -20,3 +20,8 @@ models:
       +materialized: view
     serving:
       +materialized: table
+
+seeds:
+  edu_impacto_nem_multimodal:
+    ibge_pib_municipios_clean:
+      +delimiter: ";"

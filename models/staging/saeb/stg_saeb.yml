@@ -1,0 +1,94 @@
+version: 2
+
+models:
+  - name: stg_saeb_resultados_municipios
+    description: >
+      Resultados municipais do SAEB empilhando 2019, 2021 e 2023.
+      A granularidade esperada é ano_saeb + id_municipio + dependencia_adm + localizacao.
+      As médias MEDIA_* foram preservadas na escala original de proficiência do SAEB,
+      sem conversão para escala 0 a 10. As colunas de nível representam percentuais
+      de estudantes por faixa de proficiência. O recorte 12 é comparável entre
+      2019, 2021 e 2023; os recortes 13 e 14 só existem nos arquivos de 2021 e 2023,
+      portanto ficam nulos em 2019.
+    columns:
+      - name: ano_saeb
+        description: Ano de aplicação do SAEB. Criado manualmente como 2019 no arquivo de 2019, que não trazia ANO_SAEB.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2019, 2021, 2023]
+
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, padronizado a partir de CO_MUNICIPIO e mantido como texto.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+
+      - name: co_uf
+        description: Código da unidade federativa, preservado como texto.
+        tests:
+          - not_null
+
+      - name: no_uf
+        description: Nome da unidade federativa.
+
+      - name: no_municipio
+        description: Nome do município conforme arquivo do SAEB.
+
+      - name: dependencia_adm
+        description: Recorte de dependência administrativa divulgado no resultado municipal do SAEB.
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - Estadual
+                - Federal
+                - Municipal
+                - Total - Estadual e Municipal
+                - Total - Federal, Estadual e Municipal
+                - Total - Federal, Estadual, Municipal e Privada
+
+      - name: localizacao
+        description: Recorte de localização divulgado no resultado municipal do SAEB.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [Total, Urbana, Rural]
+
+      - name: media_5_lp
+        description: Média de proficiência em Língua Portuguesa no 5º ano, preservada na escala original do SAEB.
+
+      - name: media_5_mt
+        description: Média de proficiência em Matemática no 5º ano, preservada na escala original do SAEB.
+
+      - name: media_9_lp
+        description: Média de proficiência em Língua Portuguesa no 9º ano, preservada na escala original do SAEB.
+
+      - name: media_9_mt
+        description: Média de proficiência em Matemática no 9º ano, preservada na escala original do SAEB.
+
+      - name: media_12_lp
+        description: Média de proficiência em Língua Portuguesa na 3ª/4ª série do ensino médio tradicional, comparável entre 2019, 2021 e 2023.
+
+      - name: media_12_mt
+        description: Média de proficiência em Matemática na 3ª/4ª série do ensino médio tradicional, comparável entre 2019, 2021 e 2023.
+
+      - name: nivel_0_lp12
+        description: Percentual de estudantes do ensino médio tradicional no nível 0 de Língua Portuguesa.
+
+      - name: nivel_0_mt12
+        description: Percentual de estudantes do ensino médio tradicional no nível 0 de Matemática.
+
+      - name: nivel_0_lp13
+        description: Percentual de estudantes do ensino médio integrado no nível 0 de Língua Portuguesa. Disponível apenas em 2021 e 2023.
+
+      - name: nivel_0_mt13
+        description: Percentual de estudantes do ensino médio integrado no nível 0 de Matemática. Disponível apenas em 2021 e 2023.
+
+      - name: nivel_0_lp14
+        description: Percentual de estudantes do ensino médio tradicional ou integrado no nível 0 de Língua Portuguesa. Disponível apenas em 2021 e 2023.
+
+      - name: nivel_0_mt14
+        description: Percentual de estudantes do ensino médio tradicional ou integrado no nível 0 de Matemática. Disponível apenas em 2021 e 2023.
