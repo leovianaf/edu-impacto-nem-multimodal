@@ -4,11 +4,9 @@ models:
   - name: stg_censo_escolar_escolas_2019_2024
     description: >
       Microdados do Censo Escolar 2019-2024 em granularidade escola/ano,
-      com colunas selecionadas para identificação, recortes territoriais e
-      proxies de implementação do Novo Ensino Médio. A staging preserva nulos
-      estruturais e não realiza imputação. Variáveis disponíveis apenas em
-      2023-2024, como matrículas propedêuticas/técnicas detalhadas e turmas de
-      ensino médio integral, ficam nulas nos anos anteriores.
+      com colunas selecionadas para identificação, contexto de educação básica,
+      infraestrutura escolar e proxies de implementação do Novo Ensino Médio.
+      A staging preserva nulos estruturais e não realiza imputação.
     columns:
       - name: ano
         description: Ano do Censo Escolar, padronizado a partir de NU_ANO_CENSO.
@@ -16,7 +14,6 @@ models:
           - not_null
           - accepted_values:
               values: [2019, 2020, 2021, 2022, 2023, 2024]
-
       - name: id_municipio
         description: Código IBGE de 7 dígitos do município, padronizado a partir de CO_MUNICIPIO e preservado como texto.
         tests:
@@ -24,307 +21,805 @@ models:
           - relationships:
               to: ref('br_bd_diretorios_brasil_municipio')
               field: id_municipio
-
       - name: id_escola
         description: Código da escola no Censo Escolar, padronizado a partir de CO_ENTIDADE.
         tests:
           - not_null
-
       - name: co_uf
         description: Código da unidade federativa, preservado como texto.
         tests:
           - not_null
-
       - name: sg_uf
         description: Sigla da unidade federativa.
         tests:
           - not_null
           - accepted_values:
               values: [AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO]
-
+      - name: no_uf
+        description: Nome da unidade federativa informado no Censo Escolar.
+      - name: no_municipio
+        description: Nome do município informado no Censo Escolar.
+      - name: no_entidade
+        description: Nome da escola informado no Censo Escolar.
       - name: tp_dependencia
         description: Tipo de dependência administrativa da escola.
         tests:
           - not_null
           - accepted_values:
               values: [1, 2, 3, 4]
-
       - name: tp_localizacao
         description: Localização da escola, urbana ou rural conforme codificação do Censo Escolar.
         tests:
           - not_null
           - accepted_values:
               values: [1, 2]
-
+      - name: in_bas
+        description: Indicador derivado de oferta de pelo menos uma etapa/modalidade da educação básica na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_inf
+        description: Indicador de oferta de educação infantil na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_fund
+        description: Indicador de oferta de ensino fundamental na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
       - name: in_med
-        description: Indicador de oferta de ensino médio, usado como proxy geral de presença do ensino médio na escola.
+        description: Indicador de oferta de ensino médio na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
-      - name: in_mediacao_presencial
-        description: Indicador de mediação didático-pedagógica presencial.
+      - name: in_prof
+        description: Indicador de oferta de educação profissional na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
-      - name: in_mediacao_semipresencial
-        description: Indicador de mediação didático-pedagógica semipresencial.
+      - name: in_prof_tec
+        description: Indicador de oferta de educação profissional técnica na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
-      - name: in_mediacao_ead
-        description: Indicador de mediação didático-pedagógica a distância.
+      - name: in_eja
+        description: Indicador de oferta de Educação de Jovens e Adultos na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
       - name: in_regular
         description: Indicador de oferta de ensino regular.
         tests:
           - accepted_values:
               values: [0, 1]
-
-      - name: in_prof
-        description: Indicador de oferta de educação profissional.
+      - name: in_mediacao_presencial
+        description: Indicador de mediação didático-pedagógica presencial.
+      - name: in_mediacao_semipresencial
+        description: Indicador de mediação didático-pedagógica semipresencial.
+      - name: in_mediacao_ead
+        description: Indicador de mediação didático-pedagógica a distância.
+      - name: in_biblioteca
+        description: Indicador de existência de biblioteca na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
-      - name: in_prof_tec
-        description: Indicador de oferta de educação profissional técnica.
+      - name: in_biblioteca_sala_leitura
+        description: Indicador de biblioteca ou sala de leitura na escola.
+      - name: in_internet
+        description: Indicador de acesso à internet na escola.
         tests:
           - accepted_values:
               values: [0, 1]
-
+      - name: in_internet_aprendizagem
+        description: Indicador de internet voltada ao uso pedagógico/aprendizagem.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_laboratorio_ciencias
+        description: Indicador de laboratório de ciências na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_laboratorio_informatica
+        description: Indicador de laboratório de informática na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_quadra_esportes
+        description: Indicador de quadra de esportes na escola.
+      - name: qt_salas_utilizadas
+        description: Quantidade de salas utilizadas pela escola.
+      - name: qt_mat_bas
+        description: Quantidade total de matrículas da educação básica na escola.
+      - name: qt_mat_inf
+        description: Quantidade de matrículas em educação infantil na escola.
+      - name: qt_mat_fund
+        description: Quantidade de matrículas em ensino fundamental na escola.
       - name: qt_mat_med
         description: Quantidade de matrículas no ensino médio.
-
       - name: qt_mat_med_prop
-        description: Quantidade de matrículas no ensino médio propedêutico/tradicional. Disponível em 2023-2024 nesta staging.
-
+        description: Quantidade de matrículas no ensino médio propedêutico/tradicional. Disponível quando o layout do ano informa esse recorte.
       - name: qt_mat_med_ct
-        description: Quantidade de matrículas no ensino médio com curso técnico. Disponível em 2023-2024 nesta staging.
-
+        description: Quantidade de matrículas no ensino médio articulado a curso técnico. Disponível quando o layout do ano informa esse recorte.
       - name: qt_mat_med_nm
-        description: Quantidade de matrículas no ensino médio normal/magistério. Disponível em 2023-2024 nesta staging.
-
+        description: Quantidade de matrículas no ensino médio normal/magistério. Disponível quando o layout do ano informa esse recorte.
       - name: qt_mat_med_int
         description: Quantidade de matrículas em tempo integral no ensino médio.
-
       - name: qt_mat_prof
         description: Quantidade de matrículas na educação profissional.
-
       - name: qt_mat_prof_tec
         description: Quantidade de matrículas na educação profissional técnica.
-
+      - name: qt_doc_bas
+        description: Quantidade de docentes na educação básica da escola.
+      - name: qt_doc_fund
+        description: Quantidade de docentes no ensino fundamental.
       - name: qt_doc_med
         description: Quantidade de docentes no ensino médio.
-
       - name: qt_doc_prof_tec
         description: Quantidade de docentes na educação profissional técnica.
-
+      - name: qt_tur_bas
+        description: Quantidade de turmas da educação básica na escola.
+      - name: qt_tur_fund
+        description: Quantidade de turmas de ensino fundamental.
       - name: qt_tur_med
         description: Quantidade de turmas de ensino médio.
-
       - name: qt_tur_prof_tec
         description: Quantidade de turmas de educação profissional técnica.
-
       - name: qt_tur_med_int
-        description: Quantidade de turmas em tempo integral no ensino médio. Disponível em 2023-2024 nesta staging.
+        description: Quantidade de turmas em tempo integral no ensino médio. Disponível quando o layout do ano informa esse recorte.
 
   - name: stg_censo_escolar_2025_escola
     description: >
-      Tabela de escolas do Censo Escolar 2025. Mantém granularidade escola/ano
-      e preserva indicadores específicos de oferta de ensino médio, itinerários
-      formativos e profissionalização. A coluna in_med_padronizado é derivada
-      das flags específicas de ensino médio em 2025 e não deve ser confundida
-      com IN_COMUM_MEDIO_INTEGRADO, que representa apenas a modalidade integrada.
+      Tabela de escolas do Censo Escolar 2025 com territorialização,
+      harmonização mínima dos níveis da educação básica e indicadores de
+      infraestrutura, itinerários e profissionalização.
     columns:
       - name: ano
+        description: Ano do Censo Escolar, padronizado a partir de NU_ANO_CENSO.
         tests:
           - not_null
           - accepted_values:
               values: [2025]
-
-      - name: id_municipio
-        tests:
-          - not_null
-          - relationships:
-              to: ref('br_bd_diretorios_brasil_municipio')
-              field: id_municipio
-
-      - name: id_escola
-        tests:
-          - not_null
-
+      - name: co_uf
+        description: Código da unidade federativa, preservado como texto.
       - name: sg_uf
         description: Sigla da unidade federativa.
         tests:
           - not_null
           - accepted_values:
               values: [AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO]
-
+      - name: no_uf
+        description: Nome da unidade federativa informado no Censo Escolar 2025.
+      - name: id_municipio
+        description: Código IBGE de 7 dígitos do município, padronizado a partir de CO_MUNICIPIO e preservado como texto.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+      - name: no_municipio
+        description: Nome do município informado no Censo Escolar 2025.
+      - name: id_escola
+        description: Código da escola no Censo Escolar 2025, padronizado a partir de CO_ENTIDADE.
+        tests:
+          - not_null
+      - name: no_entidade
+        description: Nome da escola informado no Censo Escolar 2025.
       - name: tp_dependencia
+        description: Tipo de dependência administrativa da escola.
         tests:
           - not_null
           - accepted_values:
               values: [1, 2, 3, 4]
-
       - name: tp_localizacao
+        description: Localização da escola, urbana ou rural conforme codificação do Censo Escolar.
         tests:
           - not_null
           - accepted_values:
               values: [1, 2]
-
-      - name: in_med_padronizado
-        description: Indicador derivado de oferta geral de ensino médio em 2025.
+      - name: in_regular
+        description: Indicador de oferta de ensino regular em 2025.
+      - name: in_profissionalizante
+        description: Indicador de oferta profissionalizante em 2025.
+      - name: tp_itinerario_formativo
+        description: Tipo de itinerário formativo informado para a escola em 2025.
+      - name: in_itinerario_aprofundamento
+        description: Indicador de itinerário de aprofundamento em 2025.
+      - name: in_itinerario_tecn_prof
+        description: Indicador de itinerário técnico-profissional em 2025.
+      - name: in_biblioteca
+        description: Indicador de existência de biblioteca na escola.
+      - name: in_biblioteca_sala_leitura
+        description: Indicador de biblioteca ou sala de leitura na escola.
+      - name: in_internet
+        description: Indicador de acesso à internet na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_internet_aprendizagem
+        description: Indicador de internet voltada ao uso pedagógico/aprendizagem.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_laboratorio_ciencias
+        description: Indicador de laboratório de ciências na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_laboratorio_informatica
+        description: Indicador de laboratório de informática na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_laboratorio_educ_prof
+        description: Indicador de laboratório de educação profissional na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_sala_oficinas_educ_prof
+        description: Indicador de sala/oficina de educação profissional na escola.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+      - name: in_quadra_esportes
+        description: Indicador de quadra de esportes na escola.
+      - name: qt_salas_utilizadas
+        description: Quantidade de salas utilizadas pela escola.
+      - name: in_comum_creche
+        description: Indicador de oferta de creche em ensino comum.
+      - name: in_comum_pre
+        description: Indicador de oferta de pré-escola em ensino comum.
+      - name: in_comum_fund_ai
+        description: Indicador de oferta de anos iniciais do fundamental em ensino comum.
+      - name: in_comum_fund_af
+        description: Indicador de oferta de anos finais do fundamental em ensino comum.
+      - name: in_comum_medio_medio
+        description: Indicador de ensino médio comum regular em 2025.
+      - name: in_comum_medio_integrado
+        description: Indicador de ensino médio comum integrado em 2025.
+      - name: in_comum_medio_fic
+        description: Indicador de ensino médio comum com FIC em 2025.
+      - name: in_comum_medio_normal
+        description: Indicador de ensino médio comum normal/magistério em 2025.
+      - name: in_esp_exclusiva_creche
+        description: Indicador de creche em educação especial exclusiva.
+      - name: in_esp_exclusiva_pre
+        description: Indicador de pré-escola em educação especial exclusiva.
+      - name: in_esp_exclusiva_fund_ai
+        description: Indicador de anos iniciais do fundamental em educação especial exclusiva.
+      - name: in_esp_exclusiva_fund_af
+        description: Indicador de anos finais do fundamental em educação especial exclusiva.
+      - name: in_esp_exclusiva_medio_medio
+        description: Indicador de ensino médio em educação especial exclusiva.
+      - name: in_esp_exclusiva_medio_integr
+        description: Indicador de ensino médio integrado em educação especial exclusiva.
+      - name: in_esp_exclusiva_medio_fic
+        description: Indicador de ensino médio FIC em educação especial exclusiva.
+      - name: in_esp_exclusiva_medio_normal
+        description: Indicador de ensino médio normal/magistério em educação especial exclusiva.
+      - name: in_comum_eja_fund
+        description: Indicador de EJA fundamental em ensino comum.
+      - name: in_comum_eja_medio
+        description: Indicador de EJA ensino médio em ensino comum.
+      - name: in_comum_eja_prof
+        description: Indicador de EJA profissional em ensino comum.
+      - name: in_esp_exclusiva_eja_fund
+        description: Indicador de EJA fundamental em educação especial exclusiva.
+      - name: in_esp_exclusiva_eja_medio
+        description: Indicador de EJA ensino médio em educação especial exclusiva.
+      - name: in_esp_exclusiva_eja_prof
+        description: Indicador de EJA profissional em educação especial exclusiva.
+      - name: in_comum_prof
+        description: Indicador de educação profissional em ensino comum.
+      - name: in_esp_exclusiva_prof
+        description: Indicador de educação profissional em educação especial exclusiva.
+      - name: in_bas
+        description: Indicador derivado de oferta de pelo menos uma etapa/modalidade da educação básica na escola.
         tests:
           - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_comum_medio_integrado
-        description: Indicador específico de ensino médio integrado em 2025; não é sinônimo de oferta geral de ensino médio.
+      - name: in_inf
+        description: Indicador derivado de oferta de educação infantil na escola.
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_itinerario_tecn_prof
-        description: Indicador de itinerário técnico-profissional em 2025.
+      - name: in_fund
+        description: Indicador derivado de oferta de ensino fundamental na escola.
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_regular
-        description: Indicador de oferta de ensino regular em 2025.
+      - name: in_med
+        description: Indicador derivado de oferta de ensino médio na escola em 2025.
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_profissionalizante
-        description: Indicador de oferta profissionalizante em 2025.
+      - name: in_med_padronizado
+        description: Indicador derivado de oferta geral de ensino médio em 2025, compatível com o histórico 2019-2024.
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_itinerario_aprofundamento
-        description: Indicador de itinerário de aprofundamento em 2025.
+      - name: in_eja
+        description: Indicador derivado de oferta de EJA na escola.
         tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
-
-      - name: in_comum_medio_medio
-        description: Indicador de ensino médio comum em 2025.
+      - name: in_prof
+        description: Indicador derivado de oferta de educação profissional na escola.
         tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_comum_medio_fic
-        description: Indicador de ensino médio comum com FIC em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_comum_medio_normal
-        description: Indicador de ensino médio normal/magistério comum em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_esp_exclusiva_medio_medio
-        description: Indicador de ensino médio em educação especial exclusiva em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_esp_exclusiva_medio_integr
-        description: Indicador de ensino médio integrado em educação especial exclusiva em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_esp_exclusiva_medio_fic
-        description: Indicador de ensino médio FIC em educação especial exclusiva em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_esp_exclusiva_medio_normal
-        description: Indicador de ensino médio normal/magistério em educação especial exclusiva em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_comum_eja_medio
-        description: Indicador de EJA ensino médio comum em 2025.
-        tests:
-          - accepted_values:
-              values: [0, 1]
-
-      - name: in_esp_exclusiva_eja_medio
-        description: Indicador de EJA ensino médio em educação especial exclusiva em 2025.
-        tests:
+          - not_null
           - accepted_values:
               values: [0, 1]
 
   - name: stg_censo_escolar_2025_matricula
     description: >
-      Tabela de matrículas do Censo Escolar 2025 em granularidade escola/ano.
-      Preserva matrículas de ensino médio, itinerários formativos, itinerário
-      técnico-profissional e tempo integral.
+      Tabela de matrículas do Censo Escolar 2025 em granularidade escola/ano,
+      enriquecida com chaves territoriais da tabela escola.
     columns:
       - name: ano
+        description: Ano do Censo Escolar 2025.
         tests:
           - not_null
           - accepted_values:
               values: [2025]
-
+      - name: co_uf
+        description: Código da unidade federativa herdado da tabela escola.
+      - name: sg_uf
+        description: Sigla da unidade federativa herdada da tabela escola.
+      - name: id_municipio
+        description: Código IBGE do município herdado da tabela escola.
+        tests:
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
       - name: id_escola
+        description: Código da escola no Censo Escolar 2025.
         tests:
           - not_null
-
+          - relationships:
+              to: ref('stg_censo_escolar_2025_escola')
+              field: id_escola
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa herdado da tabela escola.
+      - name: tp_localizacao
+        description: Localização da escola herdada da tabela escola.
       - name: qt_mat_med
         description: Quantidade de matrículas no ensino médio.
-
+      - name: qt_mat_med_prop
+        description: Quantidade de matrículas no ensino médio propedêutico/tradicional.
       - name: qt_mat_med_iftp_ct
-        description: Matrículas no itinerário de formação técnica/profissional associadas a curso técnico.
-
+        description: Matrículas no itinerário técnico-profissional associadas a curso técnico.
       - name: qt_mat_med_iftp_qp
-        description: Matrículas no itinerário de formação técnica/profissional associadas à qualificação profissional.
-
+        description: Matrículas no itinerário técnico-profissional associadas à qualificação profissional.
+      - name: qt_mat_med_nm
+        description: Quantidade de matrículas no ensino médio normal/magistério.
+      - name: qt_mat_med_ifa
+        description: Quantidade de matrículas em itinerários de aprofundamento formativo.
+      - name: qt_mat_med_ifa_ling
+        description: Matrículas em itinerário de aprofundamento em Linguagens.
+      - name: qt_mat_med_ifa_mate
+        description: Matrículas em itinerário de aprofundamento em Matemática.
+      - name: qt_mat_med_ifa_cienc
+        description: Matrículas em itinerário de aprofundamento em Ciências da Natureza.
+      - name: qt_mat_med_ifa_huma
+        description: Matrículas em itinerário de aprofundamento em Ciências Humanas.
+      - name: qt_mat_med_arti_iftp_ct
+        description: Matrículas com articulação entre EM e itinerário técnico-profissional com curso técnico.
+      - name: qt_mat_med_arti_iftp_qp
+        description: Matrículas com articulação entre EM e itinerário técnico-profissional com qualificação profissional.
+      - name: qt_mat_prof
+        description: Quantidade de matrículas na educação profissional.
+      - name: qt_mat_prof_tec
+        description: Quantidade de matrículas na educação profissional técnica.
+      - name: qt_mat_prof_tec_iftp_ct
+        description: Matrículas técnicas ligadas ao itinerário técnico-profissional com curso técnico.
+      - name: qt_mat_prof_iftp_qp
+        description: Matrículas profissionais ligadas ao itinerário técnico-profissional com qualificação profissional.
       - name: qt_mat_med_int
-        description: Matrículas em tempo integral no ensino médio.
+        description: Quantidade de matrículas em tempo integral no ensino médio.
+      - name: qt_mat_prof_int
+        description: Quantidade de matrículas em tempo integral na educação profissional.
+      - name: qt_mat_prof_tec_int
+        description: Quantidade de matrículas em tempo integral na educação profissional técnica.
+
+  - name: stg_censo_escolar_2025_turma
+    description: >
+      Tabela de turmas do Censo Escolar 2025 em granularidade escola/ano,
+      enriquecida com chaves territoriais da tabela escola.
+    columns:
+      - name: ano
+        description: Ano do Censo Escolar 2025.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2025]
+      - name: co_uf
+        description: Código da unidade federativa herdado da tabela escola.
+      - name: sg_uf
+        description: Sigla da unidade federativa herdada da tabela escola.
+      - name: id_municipio
+        description: Código IBGE do município herdado da tabela escola.
+        tests:
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+      - name: id_escola
+        description: Código da escola no Censo Escolar 2025.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_censo_escolar_2025_escola')
+              field: id_escola
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa herdado da tabela escola.
+      - name: tp_localizacao
+        description: Localização da escola herdada da tabela escola.
+      - name: qt_tur_bas
+        description: Quantidade de turmas da educação básica na escola.
+      - name: qt_tur_fund
+        description: Quantidade de turmas de ensino fundamental.
+      - name: qt_tur_med
+        description: Quantidade de turmas de ensino médio.
+      - name: qt_tur_med_prop
+        description: Quantidade de turmas de ensino médio propedêutico/tradicional.
+      - name: qt_tur_med_iftp_ct
+        description: Quantidade de turmas associadas ao itinerário técnico-profissional com curso técnico.
+      - name: qt_tur_med_iftp_qp
+        description: Quantidade de turmas associadas ao itinerário técnico-profissional com qualificação profissional.
+      - name: qt_tur_med_nm
+        description: Quantidade de turmas de ensino médio normal/magistério.
+      - name: qt_tur_med_ifa
+        description: Quantidade de turmas em itinerários de aprofundamento formativo.
+      - name: qt_tur_med_ifa_ling
+        description: Quantidade de turmas em itinerário de aprofundamento em Linguagens.
+      - name: qt_tur_med_ifa_mate
+        description: Quantidade de turmas em itinerário de aprofundamento em Matemática.
+      - name: qt_tur_med_ifa_cienc
+        description: Quantidade de turmas em itinerário de aprofundamento em Ciências da Natureza.
+      - name: qt_tur_med_ifa_huma
+        description: Quantidade de turmas em itinerário de aprofundamento em Ciências Humanas.
+      - name: qt_tur_med_int
+        description: Quantidade de turmas em tempo integral no ensino médio.
+      - name: qt_tur_med_ead
+        description: Quantidade de turmas de ensino médio com mediação EAD.
+      - name: qt_tur_prof
+        description: Quantidade de turmas da educação profissional.
+      - name: qt_tur_prof_tec
+        description: Quantidade de turmas da educação profissional técnica.
+      - name: qt_tur_prof_tec_iftp_ct
+        description: Quantidade de turmas técnicas ligadas ao itinerário técnico-profissional com curso técnico.
+      - name: qt_tur_prof_iftp_qp
+        description: Quantidade de turmas profissionais ligadas ao itinerário técnico-profissional com qualificação profissional.
+      - name: qt_tur_prof_tec_int
+        description: Quantidade de turmas técnicas em tempo integral.
+      - name: qt_tur_eja_med
+        description: Quantidade de turmas de EJA ensino médio.
+      - name: qt_tur_eja_med_tec
+        description: Quantidade de turmas de EJA ensino médio técnico.
+
+  - name: stg_censo_escolar_2025_docente
+    description: >
+      Tabela de docentes do Censo Escolar 2025 em granularidade escola/ano,
+      com foco em EM, técnico-profissional e qualificação docente agregada.
+    columns:
+      - name: ano
+        description: Ano do Censo Escolar 2025.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2025]
+      - name: co_uf
+        description: Código da unidade federativa herdado da tabela escola.
+      - name: sg_uf
+        description: Sigla da unidade federativa herdada da tabela escola.
+      - name: id_municipio
+        description: Código IBGE do município herdado da tabela escola.
+        tests:
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+      - name: id_escola
+        description: Código da escola no Censo Escolar 2025.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_censo_escolar_2025_escola')
+              field: id_escola
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa herdado da tabela escola.
+      - name: tp_localizacao
+        description: Localização da escola herdada da tabela escola.
+      - name: qt_doc_bas
+        description: Quantidade de docentes na educação básica da escola.
+      - name: qt_doc_fund
+        description: Quantidade de docentes no ensino fundamental.
+      - name: qt_doc_med
+        description: Quantidade de docentes no ensino médio.
+      - name: qt_doc_med_prop
+        description: Quantidade de docentes no ensino médio propedêutico/tradicional.
+      - name: qt_doc_med_iftp_ct
+        description: Quantidade de docentes do EM ligados ao itinerário técnico-profissional com curso técnico.
+      - name: qt_doc_med_iftp_qp
+        description: Quantidade de docentes do EM ligados ao itinerário técnico-profissional com qualificação profissional.
+      - name: qt_doc_med_nm
+        description: Quantidade de docentes no ensino médio normal/magistério.
+      - name: qt_doc_prof
+        description: Quantidade de docentes na educação profissional.
+      - name: qt_doc_prof_tec
+        description: Quantidade de docentes na educação profissional técnica.
+      - name: qt_doc_prof_tec_iftp_ct
+        description: Quantidade de docentes técnicos ligados ao itinerário técnico-profissional com curso técnico.
+      - name: qt_doc_prof_iftp_qp
+        description: Quantidade de docentes profissionais ligados ao itinerário técnico-profissional com qualificação profissional.
+      - name: qt_doc_eja_med
+        description: Quantidade de docentes na EJA ensino médio.
+      - name: qt_doc_eja_med_tec
+        description: Quantidade de docentes na EJA ensino médio técnico.
+      - name: qt_doc_bas_esco_em
+        description: Quantidade de docentes da escola com escolaridade de nível médio.
+      - name: qt_doc_bas_esco_sup_grad_licen
+        description: Quantidade de docentes com graduação/licenciatura.
+      - name: qt_doc_bas_esco_sup_pos_espec
+        description: Quantidade de docentes com pós-graduação em especialização.
+      - name: qt_doc_bas_esco_sup_pos_mestra
+        description: Quantidade de docentes com mestrado.
+      - name: qt_doc_bas_esco_sup_pos_douto
+        description: Quantidade de docentes com doutorado.
+      - name: qt_doc_bas_vinculo_concur
+        description: Quantidade de docentes com vínculo concursado.
+      - name: qt_doc_bas_vinculo_contra
+        description: Quantidade de docentes com vínculo contratado.
+      - name: qt_doc_bas_vinculo_clt
+        description: Quantidade de docentes com vínculo CLT.
+      - name: qt_doc_bas_disc_projeto_de_vida
+        description: Quantidade de docentes associados à disciplina/projeto de vida.
+      - name: qt_doc_bas_disc_profissiona
+        description: Quantidade de docentes associados a componentes profissionalizantes.
+      - name: qt_doc_bas_disc_info_computacao
+        description: Quantidade de docentes associados a computação/informática.
+
+  - name: stg_censo_escolar_2025_gestor
+    description: >
+      Tabela de gestores do Censo Escolar 2025 em granularidade escola/ano,
+      com perfil agregado de formação, vínculo e acesso ao cargo.
+    columns:
+      - name: ano
+        description: Ano do Censo Escolar 2025.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2025]
+      - name: co_uf
+        description: Código da unidade federativa herdado da tabela escola.
+      - name: sg_uf
+        description: Sigla da unidade federativa herdada da tabela escola.
+      - name: id_municipio
+        description: Código IBGE do município herdado da tabela escola.
+        tests:
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+      - name: id_escola
+        description: Código da escola no Censo Escolar 2025.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_censo_escolar_2025_escola')
+              field: id_escola
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa herdado da tabela escola.
+      - name: tp_localizacao
+        description: Localização da escola herdada da tabela escola.
+      - name: qt_gest_bas
+        description: Quantidade total de gestores na escola.
+      - name: qt_gest_bas_fem
+        description: Quantidade de gestoras mulheres.
+      - name: qt_gest_bas_masc
+        description: Quantidade de gestores homens.
+      - name: qt_gest_bas_branca
+        description: Quantidade de gestores autodeclarados brancos.
+      - name: qt_gest_bas_preta
+        description: Quantidade de gestores autodeclarados pretos.
+      - name: qt_gest_bas_parda
+        description: Quantidade de gestores autodeclarados pardos.
+      - name: qt_gest_bas_30_39
+        description: Quantidade de gestores entre 30 e 39 anos.
+      - name: qt_gest_bas_40_49
+        description: Quantidade de gestores entre 40 e 49 anos.
+      - name: qt_gest_bas_50_54
+        description: Quantidade de gestores entre 50 e 54 anos.
+      - name: qt_gest_bas_55_59
+        description: Quantidade de gestores entre 55 e 59 anos.
+      - name: qt_gest_bas_60_mais
+        description: Quantidade de gestores com 60 anos ou mais.
+      - name: qt_gest_bas_pcd
+        description: Quantidade de gestores com deficiência.
+      - name: qt_gest_bas_esco_em
+        description: Quantidade de gestores com escolaridade de nível médio.
+      - name: qt_gest_bas_esco_sup_grad_licen
+        description: Quantidade de gestores com graduação/licenciatura.
+      - name: qt_gest_bas_esco_sup_pos_espec
+        description: Quantidade de gestores com pós-graduação em especialização.
+      - name: qt_gest_bas_esco_sup_pos_mestra
+        description: Quantidade de gestores com mestrado.
+      - name: qt_gest_bas_esco_sup_pos_douto
+        description: Quantidade de gestores com doutorado.
+      - name: qt_gest_bas_vinculo_concur
+        description: Quantidade de gestores com vínculo concursado.
+      - name: qt_gest_bas_vinculo_contra
+        description: Quantidade de gestores com vínculo contratado.
+      - name: qt_gest_bas_vinculo_clt
+        description: Quantidade de gestores com vínculo CLT.
+      - name: qt_gest_bas_diretor
+        description: Quantidade de gestores no cargo de diretor.
+      - name: qt_gest_bas_outro
+        description: Quantidade de gestores em outros cargos de gestão.
+      - name: qt_gest_bas_acesso_cargo_indic
+        description: Quantidade de gestores com acesso ao cargo por indicação.
+      - name: qt_gest_bas_acesso_cargo_sel
+        description: Quantidade de gestores com acesso ao cargo por seleção.
+      - name: qt_gest_bas_acesso_cargo_conc
+        description: Quantidade de gestores com acesso ao cargo por concurso.
+      - name: qt_gest_bas_acesso_cargo_eleic
+        description: Quantidade de gestores com acesso ao cargo por eleição.
+      - name: qt_gest_bas_espec_ens_medio
+        description: Quantidade de gestores com especialização ligada ao ensino médio.
+      - name: qt_gest_bas_espec_gestao
+        description: Quantidade de gestores com especialização em gestão.
 
   - name: stg_censo_escolar_2025_curso_tecnico
     description: >
-      Tabela de cursos técnicos do Censo Escolar 2025. A granularidade é
-      escola/ano/área/curso, por isso id_escola sozinho não é chave única.
-      Preserva quantidades de cursos técnicos e matrículas, incluindo recortes
-      vinculados ao itinerário técnico-profissional.
+      Tabela de cursos técnicos do Censo Escolar 2025 enriquecida com chaves
+      territoriais e dados cadastrais da escola.
     columns:
       - name: ano
+        description: Ano do Censo Escolar 2025.
         tests:
           - not_null
           - accepted_values:
               values: [2025]
-
+      - name: co_uf
+        description: Código da unidade federativa herdado da tabela escola.
+      - name: sg_uf
+        description: Sigla da unidade federativa herdada da tabela escola.
+      - name: id_municipio
+        description: Código IBGE do município herdado da tabela escola.
+        tests:
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
       - name: id_escola
+        description: Código da escola no Censo Escolar 2025.
         tests:
           - not_null
-
+          - relationships:
+              to: ref('stg_censo_escolar_2025_escola')
+              field: id_escola
+      - name: no_entidade
+        description: Nome da escola herdado da tabela escola.
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa herdado da tabela escola.
+      - name: tp_localizacao
+        description: Localização da escola herdada da tabela escola.
+      - name: id_area_curso_profissional
+        description: Identificador da área do curso profissional.
+      - name: no_area_curso_profissional
+        description: Nome da área do curso profissional.
       - name: co_curso_educ_profissional
         description: Código do curso de educação profissional.
-
+      - name: no_curso_educ_profissional
+        description: Nome do curso de educação profissional.
       - name: qt_curso_tec
-        description: Quantidade de cursos técnicos.
-
+        description: Quantidade de cursos técnicos ofertados.
       - name: qt_mat_curso_tec
         description: Quantidade de matrículas em cursos técnicos.
-
       - name: qt_curso_tec_iftp
         description: Quantidade de cursos técnicos ligados ao itinerário técnico-profissional.
-
       - name: qt_mat_curso_tec_iftp
         description: Quantidade de matrículas em cursos técnicos ligados ao itinerário técnico-profissional.
+      - name: qt_curso_tec_nm
+        description: Quantidade de cursos técnicos no recorte do Novo Ensino Médio/modalidade correspondente no arquivo de origem.
+      - name: qt_mat_curso_tec_nm
+        description: Quantidade de matrículas em cursos técnicos no recorte do Novo Ensino Médio/modalidade correspondente no arquivo de origem.
+      - name: qt_curso_tec_conc
+        description: Quantidade de cursos técnicos concomitantes.
+      - name: qt_mat_curso_tec_conc
+        description: Quantidade de matrículas em cursos técnicos concomitantes.
+      - name: qt_curso_tec_subs
+        description: Quantidade de cursos técnicos subsequentes.
+      - name: qt_mat_curso_tec_subs
+        description: Quantidade de matrículas em cursos técnicos subsequentes.
+      - name: qt_curso_tec_iftp_ct
+        description: Quantidade de cursos técnicos do itinerário técnico-profissional com curso técnico.
+      - name: qt_mat_curso_tec_iftp_ct
+        description: Quantidade de matrículas em cursos técnicos do itinerário técnico-profissional com curso técnico.
+      - name: qt_curso_tec_eja
+        description: Quantidade de cursos técnicos em EJA.
+      - name: qt_mat_curso_tec_eja
+        description: Quantidade de matrículas em cursos técnicos em EJA.
+
+  - name: stg_censo_escolar_curso_tecnico_2023_2025
+    description: >
+      Histórico padronizado de cursos técnicos de 2023 a 2025, preservando
+      o grão escola/ano/área/curso e sinalizações de técnico integrado,
+      concomitante, subsequente, EJA e itinerário técnico-profissional.
+    columns:
+      - name: ano
+        description: Ano do Censo Escolar no histórico técnico padronizado.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2023, 2024, 2025]
+      - name: co_uf
+        description: Código da unidade federativa.
+      - name: sg_uf
+        description: Sigla da unidade federativa.
+      - name: no_uf
+        description: Nome da unidade federativa quando disponível na fonte.
+      - name: id_municipio
+        description: Código IBGE do município padronizado como texto.
+        tests:
+          - not_null
+          - relationships:
+              to: ref('br_bd_diretorios_brasil_municipio')
+              field: id_municipio
+      - name: no_municipio
+        description: Nome do município quando disponível na fonte.
+      - name: tp_dependencia
+        description: Tipo de dependência administrativa da escola.
+      - name: tp_localizacao
+        description: Localização da escola, urbana ou rural.
+      - name: id_escola
+        description: Código da escola no Censo Escolar.
+        tests:
+          - not_null
+      - name: no_entidade
+        description: Nome da escola.
+      - name: id_area_curso_profissional
+        description: Identificador da área do curso profissional.
+      - name: no_area_curso_profissional
+        description: Nome da área do curso profissional.
+      - name: co_curso_educ_profissional
+        description: Código do curso de educação profissional.
+        tests:
+          - not_null
+      - name: no_curso_educ_profissional
+        description: Nome do curso de educação profissional.
+      - name: qt_curso_tec
+        description: Quantidade de cursos técnicos ofertados.
+      - name: qt_mat_curso_tec
+        description: Quantidade de matrículas em cursos técnicos.
+      - name: qt_curso_tec_ct
+        description: Quantidade de cursos técnicos articulados com curso técnico conforme o layout 2023-2024.
+      - name: qt_mat_curso_tec_ct
+        description: Quantidade de matrículas em cursos técnicos articulados com curso técnico conforme o layout 2023-2024.
+      - name: qt_curso_tec_nm
+        description: Quantidade de cursos técnicos no recorte NM/modalidade correspondente do arquivo de origem.
+      - name: qt_mat_curso_tec_nm
+        description: Quantidade de matrículas em cursos técnicos no recorte NM/modalidade correspondente do arquivo de origem.
+      - name: qt_curso_tec_conc
+        description: Quantidade de cursos técnicos concomitantes.
+      - name: qt_mat_curso_tec_conc
+        description: Quantidade de matrículas em cursos técnicos concomitantes.
+      - name: qt_curso_tec_subs
+        description: Quantidade de cursos técnicos subsequentes.
+      - name: qt_mat_curso_tec_subs
+        description: Quantidade de matrículas em cursos técnicos subsequentes.
+      - name: qt_curso_tec_eja
+        description: Quantidade de cursos técnicos em EJA.
+      - name: qt_mat_curso_tec_eja
+        description: Quantidade de matrículas em cursos técnicos em EJA.
+      - name: qt_curso_tec_iftp
+        description: Quantidade de cursos técnicos ligados ao itinerário técnico-profissional em 2025.
+      - name: qt_mat_curso_tec_iftp
+        description: Quantidade de matrículas em cursos técnicos ligadas ao itinerário técnico-profissional em 2025.
+      - name: qt_curso_tec_iftp_ct
+        description: Quantidade de cursos técnicos do itinerário técnico-profissional com curso técnico em 2025.
+      - name: qt_mat_curso_tec_iftp_ct
+        description: Quantidade de matrículas em cursos técnicos do itinerário técnico-profissional com curso técnico em 2025.

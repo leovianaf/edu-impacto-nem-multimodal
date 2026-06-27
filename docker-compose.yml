@@ -1,0 +1,13 @@
+services:
+  dbt:
+    build:
+      context: .
+      dockerfile: Dockerfile.dbt
+    image: edu-impacto-nem-multimodal-dbt:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      DBT_PROFILES_DIR: /workspace
+    stdin_open: true
+    tty: true

@@ -11,10 +11,10 @@ A staging não deve responder sozinha às perguntas finais do projeto. Ela deve:
 - manter valores nulos estruturais sem imputação;
 - preservar escalas originais, especialmente a proficiência do SAEB;
 - separar bases com granularidades diferentes;
-- criar apenas derivações mínimas necessárias para compatibilizar versões da mesma fonte;
+- criar derivações mínimas necessárias para compatibilizar versões da mesma fonte;
 - documentar limitações e diferenças entre anos.
 
-A unidade inicial da análise final será municipal, porque `id_municipio` permite cruzar SAEB, Censo Escolar, PIB, IBGE e diretório municipal.
+A unidade principal de integração analítica continua sendo municipal, porque `id_municipio` permite cruzar SAEB, Censo Escolar, PIB, IBGE e diretório municipal. Ao mesmo tempo, a staging agora preserva grão escola/ano suficiente para derivar camadas intermediárias tanto de Ensino Médio quanto de Educação Básica, além de um eixo específico para cursos técnicos.
 
 ## Decisões gerais
 
@@ -24,9 +24,11 @@ A unidade inicial da análise final será municipal, porque `id_municipio` permi
 | Manter chaves territoriais como texto | Evita perda de zeros à esquerda e padroniza joins. |
 | Não imputar nulos na staging | Alguns nulos são estruturais, como colunas que não existem em todos os anos. |
 | Separar Censo Escolar 2025 | O desenho de 2025 vem em tabelas temáticas e não é continuação direta da tabela larga de 2019-2024. |
-| Criar PIB em formato longo | A análise temporal fica mais simples com `id_municipio + ano + pib`. |
+| Territorializar tabelas temáticas de 2025 via `id_escola` | Permite levar `id_municipio`, UF e recortes escolares para matrícula, turma, docente, gestor e curso técnico. |
+| Manter sinais de Educação Básica junto do núcleo de Ensino Médio | Permite montar intermediates tanto para contexto amplo de EB quanto para foco analítico em EM/NEM. |
+| Unificar histórico de cursos técnicos 2023-2025 | Permite comparar oferta e matrículas técnicas antes e depois da reorganização temática de 2025. |
 | Não converter média SAEB para 0-10 | `MEDIA_*` é proficiência na escala original do SAEB; conversão seria métrica derivada posterior. |
-| Criar `in_med_padronizado` apenas para 2025 | Em 2025 não existe `IN_MED` igual ao formato 2019-2024; a oferta geral precisa ser reconstruída a partir das flags específicas de ensino médio. |
+| Criar `in_med_padronizado` e harmonizar flags de nível em 2025 | Em 2025 não existe `IN_MED` no mesmo formato 2019-2024; a oferta geral precisa ser reconstruída a partir das flags específicas. |
 
 ## SAEB municipal
 
@@ -49,11 +51,9 @@ Tabelas fonte:
 | `media_5_lp`, `media_5_mt` | `MEDIA_5_LP`, `MEDIA_5_MT` | Preservadas na escala original do SAEB. |
 | `media_9_lp`, `media_9_mt` | `MEDIA_9_LP`, `MEDIA_9_MT` | Preservadas na escala original do SAEB. |
 | `media_12_lp`, `media_12_mt` | `MEDIA_12_LP`, `MEDIA_12_MT` | Principais médias comparáveis para ensino médio entre 2019, 2021 e 2023. |
-| `nivel_*_LP5`, `nivel_*_MT5` | SAEB 2019, 2021, 2023 | Preservados como distribuição percentual de proficiência do 5º ano. |
-| `nivel_*_LP9`, `nivel_*_MT9` | SAEB 2019, 2021, 2023 | Preservados como distribuição percentual de proficiência do 9º ano. |
 | `nivel_*_LP12`, `nivel_*_MT12` | SAEB 2019, 2021, 2023 | Recorte comparável do ensino médio tradicional. |
-| `nivel_*_LP13`, `nivel_*_MT13` | SAEB 2021, 2023 | Disponível apenas em 2021 e 2023; fica nulo em 2019. |
-| `nivel_*_LP14`, `nivel_*_MT14` | SAEB 2021, 2023 | Disponível apenas em 2021 e 2023; fica nulo em 2019. |
+| `nivel_*_LP13`, `nivel_*_MT13` | SAEB 2021, 2023 | Ensino médio integrado, disponível apenas em 2021 e 2023. |
+| `nivel_*_LP14`, `nivel_*_MT14` | SAEB 2021, 2023 | Agregado tradicional + integrado, disponível apenas em 2021 e 2023. |
 | `ano_saeb` | `ANO_SAEB` ou criação manual | Criado como `2019` no arquivo de 2019, porque ele não trazia `ANO_SAEB`. |
 
 Decisão metodológica: para antes/depois do ensino médio, o núcleo comparável é `media_12_lp`, `media_12_mt`, `nivel_*_LP12` e `nivel_*_MT12`. Os recortes `13` e `14` enriquecem o retrato pós-2019, mas não podem ser usados como série temporal completa desde 2019.
@@ -77,12 +77,13 @@ Tabelas fonte:
 |---|---|---|
 | Identificação e território | `ano`, `co_uf`, `sg_uf`, `no_uf`, `id_municipio`, `no_municipio`, `id_escola`, `no_entidade` | Permitem ligação territorial, auditoria de nomes e granularidade escola/ano. |
 | Recorte escolar | `tp_dependencia`, `tp_localizacao` | Permitem separar rede administrativa e localização urbana/rural. |
-| Oferta de ensino médio | `in_regular`, `in_med`, `in_prof`, `in_prof_tec` | Indicam presença geral de ensino regular, ensino médio e educação profissional/técnica. |
-| Mediação | `in_mediacao_presencial`, `in_mediacao_semipresencial`, `in_mediacao_ead` | Preservadas porque ajudam a qualificar diferenças de oferta e atendimento. |
-| Matrículas | `qt_mat_med`, `qt_mat_med_prop`, `qt_mat_med_ct`, `qt_mat_med_nm`, `qt_mat_med_int`, `qt_mat_prof`, `qt_mat_prof_tec` | Núcleo principal dos proxies de oferta, composição e tempo integral no ensino médio. |
-| Docentes e turmas | `qt_doc_med`, `qt_doc_prof_tec`, `qt_tur_med`, `qt_tur_prof_tec`, `qt_tur_med_int` | Contexto estrutural da oferta escolar e capacidade de atendimento. |
+| Harmonização de nível | `in_bas`, `in_inf`, `in_fund`, `in_med`, `in_prof`, `in_prof_tec`, `in_eja` | Mantêm sinais mínimos da Educação Básica e permitem filtros posteriores por etapa. |
+| Mediação | `in_mediacao_presencial`, `in_mediacao_semipresencial`, `in_mediacao_ead` | Ajudam a qualificar diferenças de oferta e atendimento. |
+| Infraestrutura escolar | `in_biblioteca`, `in_biblioteca_sala_leitura`, `in_internet`, `in_internet_aprendizagem`, `in_laboratorio_ciencias`, `in_laboratorio_informatica`, `in_quadra_esportes`, `qt_salas_utilizadas` | Oferecem contexto físico e tecnológico para análises de EB e EM. |
+| Matrículas | `qt_mat_bas`, `qt_mat_inf`, `qt_mat_fund`, `qt_mat_med`, `qt_mat_med_prop`, `qt_mat_med_ct`, `qt_mat_med_nm`, `qt_mat_med_int`, `qt_mat_prof`, `qt_mat_prof_tec` | Permitem acompanhar volume geral, contexto da EB e detalhamento do EM/técnico. |
+| Docentes e turmas | `qt_doc_bas`, `qt_doc_fund`, `qt_doc_med`, `qt_doc_prof_tec`, `qt_tur_bas`, `qt_tur_fund`, `qt_tur_med`, `qt_tur_prof_tec`, `qt_tur_med_int` | Contexto estrutural da oferta escolar e capacidade de atendimento. |
 
-Decisão metodológica: `IN_MED` é o indicador geral de oferta de ensino médio para 2019-2024. As colunas `qt_mat_med_prop`, `qt_mat_med_ct`, `qt_mat_med_nm` e `qt_tur_med_int` ficam nulas em anos nos quais não existem com essa estrutura; esses nulos são estruturais.
+Decisão metodológica: `IN_MED` é o indicador geral de oferta de ensino médio para 2019-2024. `in_bas` foi derivado de sinais de etapa (`in_inf`, `in_fund`, `in_med`, `in_prof`, `in_eja`) para evitar depender de colunas instáveis entre anos. As colunas detalhadas do EM que não existem em todos os anos permanecem nulas quando ausentes.
 
 ## Censo Escolar 2025
 
@@ -100,13 +101,12 @@ Tabela fonte: `Tabela_Escola_2025`
 |---|---|---|
 | Identificação e território | `ano`, `co_uf`, `sg_uf`, `no_uf`, `id_municipio`, `no_municipio`, `id_escola`, `no_entidade` | Mantém ligação territorial e chave escolar. |
 | Recorte escolar | `tp_dependencia`, `tp_localizacao` | Mantém rede administrativa e localização. |
-| Oferta geral | `in_regular`, `in_profissionalizante` | Indicam oferta regular e profissionalizante em 2025. |
-| Itinerários | `tp_itinerario_formativo`, `in_itinerario_aprofundamento`, `in_itinerario_tecn_prof` | São sinais diretos da organização do Novo Ensino Médio em 2025. |
-| Ensino médio comum | `in_comum_medio_medio`, `in_comum_medio_integrado`, `in_comum_medio_fic`, `in_comum_medio_normal` | Permitem separar ensino médio regular, integrado, FIC e normal/magistério. |
-| Educação especial e EJA | `in_esp_exclusiva_medio_medio`, `in_esp_exclusiva_medio_integr`, `in_esp_exclusiva_medio_fic`, `in_esp_exclusiva_medio_normal`, `in_comum_eja_medio`, `in_esp_exclusiva_eja_medio` | Preservam formas específicas de oferta de ensino médio. |
-| Derivada mínima | `in_med_padronizado` | Reconstrói presença geral de ensino médio em 2025 a partir das flags específicas. |
+| Harmonização de nível | `in_bas`, `in_inf`, `in_fund`, `in_med`, `in_eja`, `in_prof`, `in_med_padronizado` | Reconstrói oferta geral por etapa e compatibiliza 2025 com o histórico anterior. |
+| Itinerários e profissionalização | `tp_itinerario_formativo`, `in_itinerario_aprofundamento`, `in_itinerario_tecn_prof`, `in_profissionalizante` | Sinais diretos da organização do NEM e da articulação técnica. |
+| Ensino comum, especial e EJA | flags `in_comum_*` e `in_esp_exclusiva_*` | Permitem distinguir modalidades de oferta do EM e demais etapas. |
+| Infraestrutura escolar | `in_biblioteca`, `in_internet`, `in_internet_aprendizagem`, `in_laboratorio_ciencias`, `in_laboratorio_informatica`, `in_laboratorio_educ_prof`, `in_sala_oficinas_educ_prof`, `in_quadra_esportes`, `qt_salas_utilizadas` | Agrega contexto físico e tecnológico relevante para EB, EM e técnico. |
 
-Decisão metodológica: `IN_COMUM_MEDIO_INTEGRADO` não é sinônimo de `IN_MED`. Ele representa uma modalidade específica. Por isso foi criada `in_med_padronizado` para indicar oferta geral de ensino médio em 2025, mantendo as modalidades separadas.
+Decisão metodológica: `IN_COMUM_MEDIO_INTEGRADO` não é sinônimo de `IN_MED`. Ele representa uma modalidade específica. Por isso foram preservadas as flags específicas e criada a derivação de oferta geral `in_med`/`in_med_padronizado`.
 
 ### Tabela Matrícula 2025
 
@@ -118,11 +118,59 @@ Tabela fonte: `Tabela_Matricula_2025`
 
 | Bloco | Features na staging | Justificativa |
 |---|---|---|
-| Chave | `ano`, `id_escola` | Permite ligar com a tabela de escola de 2025. |
-| Ensino médio | `qt_mat_med`, `qt_mat_med_prop`, `qt_mat_med_nm`, `qt_mat_med_int` | Núcleo de matrículas do ensino médio e tempo integral. |
-| Itinerário formativo | `qt_mat_med_ifa`, `qt_mat_med_ifa_ling`, `qt_mat_med_ifa_mate`, `qt_mat_med_ifa_cienc`, `qt_mat_med_ifa_huma` | Matrículas por itinerário de formação geral/aprofundamento. |
+| Chave e território | `ano`, `co_uf`, `sg_uf`, `id_municipio`, `id_escola`, `tp_dependencia`, `tp_localizacao` | Territorialização herdada da tabela escola, permitindo agregação municipal posterior. |
+| Ensino médio | `qt_mat_med`, `qt_mat_med_prop`, `qt_mat_med_nm`, `qt_mat_med_int` | Núcleo de matrículas do EM e tempo integral. |
+| Itinerário formativo | `qt_mat_med_ifa`, `qt_mat_med_ifa_ling`, `qt_mat_med_ifa_mate`, `qt_mat_med_ifa_cienc`, `qt_mat_med_ifa_huma` | Matrículas por aprofundamento formativo. |
 | Itinerário técnico-profissional | `qt_mat_med_iftp_ct`, `qt_mat_med_iftp_qp`, `qt_mat_med_arti_iftp_ct`, `qt_mat_med_arti_iftp_qp` | Sinais fortes de implementação técnico-profissional em 2025. |
 | Educação profissional | `qt_mat_prof`, `qt_mat_prof_tec`, `qt_mat_prof_tec_iftp_ct`, `qt_mat_prof_iftp_qp`, `qt_mat_prof_int`, `qt_mat_prof_tec_int` | Complementam a leitura de formação técnica/profissional. |
+
+### Tabela Turma 2025
+
+Modelo: `models/staging/censo_escolar/stg_censo_escolar_2025_turma.sql`
+
+Granularidade: `ano + id_escola`
+
+Tabela fonte: `Tabela_Turma_2025`
+
+| Bloco | Features na staging | Justificativa |
+|---|---|---|
+| Chave e território | `ano`, `co_uf`, `sg_uf`, `id_municipio`, `id_escola`, `tp_dependencia`, `tp_localizacao` | Permite agregar turmas com o mesmo recorte das demais tabelas. |
+| Contexto EB | `qt_tur_bas`, `qt_tur_fund` | Dá contexto estrutural mais amplo para escola/ano. |
+| Ensino médio | `qt_tur_med`, `qt_tur_med_prop`, `qt_tur_med_nm`, `qt_tur_med_int`, `qt_tur_med_ead` | Mede organização do EM em turmas. |
+| Itinerários | `qt_tur_med_iftp_ct`, `qt_tur_med_iftp_qp`, `qt_tur_med_ifa`, `qt_tur_med_ifa_ling`, `qt_tur_med_ifa_mate`, `qt_tur_med_ifa_cienc`, `qt_tur_med_ifa_huma` | Aproxima a leitura da organização curricular do NEM. |
+| Educação profissional e EJA | `qt_tur_prof`, `qt_tur_prof_tec`, `qt_tur_prof_tec_iftp_ct`, `qt_tur_prof_iftp_qp`, `qt_tur_prof_tec_int`, `qt_tur_eja_med`, `qt_tur_eja_med_tec` | Complementam o retrato técnico e da EJA no EM. |
+
+### Tabela Docente 2025
+
+Modelo: `models/staging/censo_escolar/stg_censo_escolar_2025_docente.sql`
+
+Granularidade: `ano + id_escola`
+
+Tabela fonte: `Tabela_Docente_2025`
+
+| Bloco | Features na staging | Justificativa |
+|---|---|---|
+| Chave e território | `ano`, `co_uf`, `sg_uf`, `id_municipio`, `id_escola`, `tp_dependencia`, `tp_localizacao` | Permite agregar docentes com o mesmo recorte escolar/municipal. |
+| Contexto EB | `qt_doc_bas`, `qt_doc_fund` | Dá contexto docente mais amplo para a escola. |
+| Ensino médio e técnico | `qt_doc_med`, `qt_doc_med_prop`, `qt_doc_med_iftp_ct`, `qt_doc_med_iftp_qp`, `qt_doc_med_nm`, `qt_doc_prof`, `qt_doc_prof_tec`, `qt_doc_prof_tec_iftp_ct`, `qt_doc_prof_iftp_qp`, `qt_doc_eja_med`, `qt_doc_eja_med_tec` | Permite avaliar capacidade docente ligada ao EM e à profissionalização. |
+| Formação, vínculo e disciplinas | `qt_doc_bas_esco_em`, `qt_doc_bas_esco_sup_grad_licen`, `qt_doc_bas_esco_sup_pos_*`, `qt_doc_bas_vinculo_*`, `qt_doc_bas_disc_projeto_de_vida`, `qt_doc_bas_disc_profissiona`, `qt_doc_bas_disc_info_computacao` | Enriquece a análise da estrutura docente associada ao NEM. |
+
+### Tabela Gestor 2025
+
+Modelo: `models/staging/censo_escolar/stg_censo_escolar_2025_gestor.sql`
+
+Granularidade: `ano + id_escola`
+
+Tabela fonte: `Tabela_Gestor_Escolar_2025`
+
+| Bloco | Features na staging | Justificativa |
+|---|---|---|
+| Chave e território | `ano`, `co_uf`, `sg_uf`, `id_municipio`, `id_escola`, `tp_dependencia`, `tp_localizacao` | Permite unir perfil de gestão ao restante do contexto escolar. |
+| Perfil agregado | `qt_gest_bas`, recortes de sexo, raça/cor, idade e PCD | Preserva estrutura agregada da gestão escolar. |
+| Formação e vínculo | `qt_gest_bas_esco_*`, `qt_gest_bas_vinculo_*` | Dá contexto institucional para análises explicativas. |
+| Cargo, acesso e especialização | `qt_gest_bas_diretor`, `qt_gest_bas_outro`, `qt_gest_bas_acesso_cargo_*`, `qt_gest_bas_espec_ens_medio`, `qt_gest_bas_espec_gestao` | Oferece contexto complementar para gestão e implementação. |
+
+## Cursos técnicos
 
 ### Tabela Curso Técnico 2025
 
@@ -134,18 +182,29 @@ Tabela fonte: `Tabela_Curso_Tecnico_2025`
 
 | Bloco | Features na staging | Justificativa |
 |---|---|---|
-| Chave e descrição | `ano`, `id_escola`, `id_area_curso_profissional`, `no_area_curso_profissional`, `co_curso_educ_profissional`, `no_curso_educ_profissional` | Preserva a granularidade de cursos técnicos. |
+| Chave, território e descrição | `ano`, `co_uf`, `sg_uf`, `id_municipio`, `id_escola`, `no_entidade`, `tp_dependencia`, `tp_localizacao`, `id_area_curso_profissional`, `no_area_curso_profissional`, `co_curso_educ_profissional`, `no_curso_educ_profissional` | Preserva a granularidade do curso técnico e o recorte territorial. |
 | Cursos e matrículas técnicas | `qt_curso_tec`, `qt_mat_curso_tec` | Mede oferta e volume de cursos técnicos. |
 | Itinerário técnico-profissional | `qt_curso_tec_iftp`, `qt_mat_curso_tec_iftp`, `qt_curso_tec_iftp_ct`, `qt_mat_curso_tec_iftp_ct` | Mede cursos/matrículas ligados ao itinerário técnico-profissional. |
 | Modalidades técnicas | `qt_curso_tec_nm`, `qt_mat_curso_tec_nm`, `qt_curso_tec_conc`, `qt_mat_curso_tec_conc`, `qt_curso_tec_subs`, `qt_mat_curso_tec_subs`, `qt_curso_tec_eja`, `qt_mat_curso_tec_eja` | Mantém recortes de forma de oferta técnica. |
 
-## Features de infraestrutura do Censo Escolar
+### Histórico de cursos técnicos 2023-2025
 
-As features de infraestrutura, como internet, laboratório, salas e estrutura física, foram consideradas como contexto possível, mas não entraram no primeiro escopo da staging principal do NEM.
+Modelo: `models/staging/censo_escolar/stg_censo_escolar_curso_tecnico_2023_2025.sql`
 
-Decisão atual: não incluir no primeiro ciclo para manter a staging focada em desempenho, oferta, matrícula, itinerários e contexto socioeconômico municipal.
+Granularidade: `ano + id_escola + id_area_curso_profissional + co_curso_educ_profissional`
 
-Decisão pendente: se a análise precisar explicar diferenças estruturais entre municípios, criar uma staging complementar de infraestrutura escolar, com colunas como `IN_INTERNET`, `IN_INTERNET_APRENDIZAGEM`, `IN_LABORATORIO_INFORMATICA`, `IN_LABORATORIO_CIENCIAS`, `IN_LABORATORIO_EDUC_PROF`, `IN_SALA_OFICINAS_EDUC_PROF` e `QT_SALAS_UTILIZADAS`, validando se existem em todos os anos desejados.
+Tabelas fonte:
+
+- `suplemento_cursos_tecnicos_2023`
+- `suplemento_cursos_tecnicos_2024`
+- `stg_censo_escolar_2025_curso_tecnico`
+
+| Bloco | Features na staging | Justificativa |
+|---|---|---|
+| Chave e território | `ano`, `co_uf`, `sg_uf`, `no_uf`, `id_municipio`, `no_municipio`, `tp_dependencia`, `tp_localizacao`, `id_escola`, `no_entidade` | Permite comparação territorial e administrativa entre 2023, 2024 e 2025. |
+| Chave do curso | `id_area_curso_profissional`, `no_area_curso_profissional`, `co_curso_educ_profissional`, `no_curso_educ_profissional` | Preserva comparabilidade de áreas e cursos. |
+| Oferta técnica histórica | `qt_curso_tec`, `qt_mat_curso_tec`, `qt_curso_tec_ct`, `qt_mat_curso_tec_ct`, `qt_curso_tec_nm`, `qt_mat_curso_tec_nm`, `qt_curso_tec_conc`, `qt_mat_curso_tec_conc`, `qt_curso_tec_subs`, `qt_mat_curso_tec_subs`, `qt_curso_tec_eja`, `qt_mat_curso_tec_eja` | Mantém modalidades clássicas do técnico ao longo do tempo. |
+| Itinerário técnico-profissional 2025 | `qt_curso_tec_iftp`, `qt_mat_curso_tec_iftp`, `qt_curso_tec_iftp_ct`, `qt_mat_curso_tec_iftp_ct` | Permite adicionar o eixo do NEM técnico sem perder o histórico pré-2025. |
 
 ## PIB municipal
 
@@ -160,8 +219,6 @@ Tabela fonte: `seeds/ibge_pib_municipios_clean.csv`
 | `id_municipio` | `id_municipio` | Mantido como texto. |
 | `nome_municipio` | `nome_municipio` | Preservado para leitura e conferência. |
 | `pib_2019` a `pib_2023` | `ano`, `pib` | Convertido de wide para long para facilitar análise temporal. |
-
-Decisão metodológica: a seed já chega limpa ao repositório, mas a limpeza anterior não está automatizada no pipeline. A staging filtra linhas válidas de município e preserva anos 2019-2023.
 
 ## IBGE Censo municipal
 
@@ -214,17 +271,86 @@ Tabela fonte: `seeds/br_bd_diretorios_brasil_municipio.csv`
 | Tipo de teste | Onde foi aplicado |
 |---|---|
 | `not_null` | Chaves, anos, campos territoriais e categorias essenciais. |
-| `unique` e chaves compostas | SAEB, Censo 2019-2024, Censo 2025, PIB, IBGE e diretório municipal. |
+| `unique` e chaves compostas | SAEB, Censo 2019-2024, Censo 2025, curso técnico histórico, PIB, IBGE e diretório municipal. |
 | `accepted_values` | UF, anos, dependência administrativa, localização, flags `IN_*`, sexo, cor/raça e alfabetização. |
 | Faixas numéricas | Proficiência SAEB, percentuais `nivel_*`, PIB, população, taxas e contagens. |
-| Relacionamento territorial | `id_municipio` validado contra a seed municipal de referência. |
-| Cobertura esperada | IBGE, PIB, alfabetização detalhada e diretório municipal. |
+| Relacionamentos | `id_municipio` validado contra a seed municipal; tabelas temáticas de 2025 ligadas à tabela escola por `id_escola`. |
+| Cobertura esperada | IBGE, PIB, alfabetização detalhada, diretório municipal e modelos temáticos 2025 carregados a partir das fontes previstas. |
+
+## Tratamentos de qualidade aplicados na staging
+
+Os tratamentos abaixo fazem parte da staging, porque são necessários para tornar as fontes comparáveis, auditáveis e seguras para agregação posterior. Eles não substituem a camada intermediária, mas garantem que a intermediate receba dados padronizados.
+
+### Chaves e tipagem
+
+- `CO_MUNICIPIO` foi padronizado para `id_municipio` e mantido como texto em SAEB, Censo Escolar e bases municipais do IBGE para evitar perda de zeros à esquerda e estabilizar joins.
+- `CO_ENTIDADE` foi padronizado para `id_escola` e mantido como texto nas tabelas escolares do Censo.
+- `CO_UF`, `SG_UF` e outras chaves territoriais foram mantidas como texto para preservar domínio e comparabilidade entre fontes.
+- `ANO_SAEB` e `NU_ANO_CENSO` foram convertidos para inteiro, mantendo a leitura temporal consistente.
+- Contagens `QT_*` foram convertidas para inteiro e métricas contínuas, como proficiência SAEB, taxa de alfabetização e PIB, foram convertidas para tipos numéricos compatíveis com análise.
+
+### Harmonização de nomes e granularidade
+
+- Colunas-chave foram renomeadas para um padrão comum entre fontes, como `id_municipio`, `id_escola`, `ano` e `ano_saeb`.
+- O Censo Escolar 2025 foi mantido em tabelas temáticas separadas para respeitar a granularidade real de `escola`, `matrícula`, `turma`, `docente`, `gestor` e `curso técnico`.
+- As tabelas temáticas de 2025 foram enriquecidas com território e recortes escolares via `id_escola`, para não perder capacidade de agregação municipal posterior.
+- O histórico de cursos técnicos `2023-2025` foi padronizado em um único modelo, preservando área, curso, modalidade e recortes administrativos.
+
+### Flags derivadas e compatibilização entre anos
+
+- `in_med_padronizado` foi criado em 2025 porque o conceito de oferta de ensino médio passou a estar distribuído em várias flags específicas.
+- `in_bas`, `in_inf`, `in_fund`, `in_med`, `in_eja` e `in_prof` foram harmonizados para permitir leitura comparável entre anos e entre o bloco 2019-2024 e o bloco 2025.
+- `in_bas` em 2019-2024 foi derivado a partir das flags de etapa disponíveis, evitando depender de colunas instáveis entre anos.
+- O tratamento foi conservador: a staging cria apenas indicadores operacionais mínimos de compatibilidade, sem gerar índices analíticos compostos.
+
+### Nulos estruturais e diferenças de schema
+
+- Nulos estruturais foram preservados quando uma coluna não existe em todos os anos ou quando determinado recorte não se aplica à escola/município.
+- No Censo Escolar 2019-2024, colunas como `qt_mat_med_prop`, `qt_mat_med_ct`, `qt_mat_med_nm` e `qt_tur_med_int` permanecem nulas nos anos em que não existem no layout original.
+- No SAEB, nulos de `MEDIA_*` e `nivel_*` foram mantidos quando o recorte não tem resultado divulgado.
+- A staging não faz imputação de matrículas, docentes, turmas, PIB, população ou alfabetização.
+
+### Tratamentos específicos por fonte
+
+#### SAEB
+
+- O arquivo de 2019 recebeu `ano_saeb = 2019` porque esse campo não vinha explicitamente na base.
+- As médias `MEDIA_*` foram mantidas na escala original de proficiência, sem conversão para nota 0-10.
+- Os níveis de proficiência `nivel_*` foram preservados como percentuais, porque são parte do dado analítico original.
+
+#### Censo Escolar
+
+- As tabelas escolares foram reduzidas ao conjunto de colunas mais relevantes para EB, EM, NEM, infraestrutura e articulação técnico-profissional.
+- Em 2025, `matrícula`, `turma`, `docente`, `gestor` e `curso técnico` foram ligados à tabela `escola` para carregar `id_municipio`, `co_uf`, `sg_uf`, `tp_dependencia` e `tp_localizacao`.
+- O histórico técnico 2023-2025 compatibilizou modalidades antigas, como concomitante, subsequente e EJA, com os recortes novos de itinerário técnico-profissional em 2025.
+
+#### IBGE e diretórios
+
+- O PIB municipal foi convertido de formato wide para long em `id_municipio + ano + pib`.
+- A alfabetização detalhada do IBGE foi mantida no grão original `município + recortes sociais`, sem agregação precoce.
+- O diretório municipal foi preservado como dimensão territorial de referência para relacionamentos e cobertura.
+
+### O que não foi feito na staging
+
+- Não houve imputação de nulos.
+- Não houve padronização analítica por taxa, percentual ou índice composto.
+- Não houve agregação escola -> município.
+- Não houve cálculo de deltas antes/depois do SAEB.
+- Não houve criação de métricas finais de implementação do NEM.
+
+Esses pontos ficam para `intermediate` e `gold`, mas dependem diretamente da qualidade e da padronização já garantidas pela staging.
+
+## Status atual de validação
+
+- O EDA já validou granularidade, presença de chaves, compatibilidade territorial por `id_municipio` e comportamento estrutural de nulos nas bases usadas pela staging.
+- A staging implementada já cobre `SAEB`, `Censo Escolar 2019-2025`, histórico técnico `2023-2025`, `PIB`, `IBGE municipal`, `IBGE alfabetização detalhada` e diretório municipal.
+- Com a passagem dos testes dbt da staging, o projeto fica pronto para avançar para camadas `intermediate` tanto com foco em Ensino Médio/NEM quanto com uma leitura mais ampla de Educação Básica.
 
 ## O que ainda precisa ser decidido depois da staging
 
-- Se as features de infraestrutura escolar entram em uma staging complementar.
 - Como agregar Censo Escolar de escola para município.
 - Como ponderar médias e matrículas na camada intermediária.
 - Como calcular deltas antes/depois do SAEB.
 - Como separar análise comparável 2019-2024 de retrato pós-mudança 2025.
 - Quais indicadores finais serão usados como proxies principais de implementação do NEM.
+- Como articular indicadores de curso técnico com oferta, matrícula, docente e turma de EM na intermediate/gold.
