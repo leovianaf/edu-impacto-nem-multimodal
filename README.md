@@ -4,6 +4,24 @@ Repositório técnico para ingestão, padronização e análise de dados educaci
 
 O principal desafio de engenharia de dados deste trabalho foi contornar a mascaragem dos códigos geográficos nos microdados do SAEB. Para isso, o pipeline foi estruturado para utilizar planilhas agregadas de resultados por município e reconciliá-las com bases auxiliares e microdados do Censo Escolar, preservando rastreabilidade, reprodutibilidade, respeito à LGPD e consistência analítica.
 
+## Estado Atual
+
+O pipeline já tem a camada `staging` e a `intermediate` consolidadas e validadas. A etapa seguinte é a `serving`/`gold`, com foco principal no Ensino Médio e na extração de indicadores analíticos para o NEM, mantendo o histórico técnico como enriquecimento da leitura.
+
+## Qualidade E Limitações
+
+A tabela abaixo resume as limitações originais das fontes e o que foi feito na pipeline, principalmente na `staging` e na `intermediate`, para torná-las utilizáveis na análise.
+
+| Fonte | Limitação original | O que a pipeline resolveu | Garantia resultante |
+| --- | --- | --- | --- |
+| SAEB municipal | identificadores geográficos mascarados nos microdados | uso de resultados agregados por município e reconciliação com chaves territoriais auxiliares | cruzamento municipal viável sem expor microdados sensíveis |
+| Censo Escolar 2019-2024 | arquivo largo com colunas heterogêneas entre anos | padronização por escola/ano e compatibilização temporal na `intermediate` | série comparável para EB, EM e sinais do NEM |
+| Censo Escolar 2025 | mudança estrutural para tabelas temáticas separadas | territorialização por `id_escola` e junção das tabelas temáticas | base única escola/ano para matrícula, turma, docente, gestor e escola |
+| Cursos técnicos 2023-2025 | granularidade separada por curso/área e layout diferente em 2025 | unificação histórica e agregação escola/ano | leitura consistente da oferta técnica sem perder rastreabilidade |
+| IBGE e PIB | fontes estruturais com granularidade e periodicidade distintas | chaves municipais normalizadas e reaplicação do contexto IBGE 2022 no painel | contexto socioeconômico comparável ao longo de 2019-2025 |
+
+Essas garantias se referem à pipeline construída. Elas não eliminam as limitações inerentes às fontes originais, mas tornam explícito o que foi harmonizado para uso analítico.
+
 ## Objetivo Analítico
 
 O projeto busca responder, entre outras, às seguintes questões:
@@ -42,8 +60,8 @@ O fluxo de dados foi desenhado para isolar claramente ingestão, padronização 
    - Seeds em `seeds/` fornecem dados auxiliares estruturados, como códigos municipais, PIB e bases do IBGE.
 
 4. **Persistência e consumo analítico**
-   - A camada final consolida insumos para análise estatística, exploração em notebooks, visualizações e consumo multimodal.
-   - Os dados da camada serving são enviados para imagens MongoDB e Neo4j.
+   - A camada final consolida insumos para análise estatística, exploração em ferramentas de consumo e publicação multimodal.
+   - Quando a `serving`/`gold` estiver pronta, os dados podem ser enviados para MongoDB e Neo4j.
 
 ## Como Rodar
 
@@ -95,6 +113,15 @@ docker compose run --rm dbt dbt seed --profiles-dir .
 docker compose run --rm dbt dbt run --select staging --profiles-dir .
 docker compose run --rm dbt dbt test --select staging --profiles-dir .
 ```
+
+Depois de fechar a `staging`, o fluxo natural do projeto segue para a `intermediate`:
+
+```bash
+docker compose run --rm dbt dbt run --select staging intermediate --profiles-dir .
+docker compose run --rm dbt dbt test --select staging intermediate --profiles-dir .
+```
+
+A `intermediate` já foi validada com testes de cobertura municipal e reconciliação escola -> município. A partir daqui, o foco passa a ser a construção da `serving` com recortes orientados ao EM/NEM.
 
 Abrir um shell no container, montando o repositório inteiro em `/workspace`:
 
@@ -276,12 +303,12 @@ A documentação das decisões da staging está em [docs/staging_decisoes.md](do
 - por que o Censo Escolar 2025 foi separado em tabelas próprias;
 - quais testes de qualidade sustentam a passagem para a camada intermediária.
 
-### 7. Publicar a camada gold em MongoDB e Neo4j
+### 7. Publicar a camada serving em MongoDB e Neo4j
 
-Após a materialização da camada gold no DuckDB, a etapa seguinte da arquitetura consiste na publicação dos dados para as bases de consumo final.
+Após a materialização da camada `serving` no DuckDB, a etapa seguinte da arquitetura consiste na publicação dos dados para as bases de consumo final.
 
 ```bash
-python scripts/load_gold_nosql.py
+python scripts/load_serving_nosql.py
 ```
 
 ## Estrutura do Projeto

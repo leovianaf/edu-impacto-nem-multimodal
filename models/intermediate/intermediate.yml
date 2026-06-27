@@ -1,0 +1,225 @@
+version: 2
+
+models:
+  - name: int_censo_escola_ano_2019_2025
+    description: >
+      Painel escola/ano compatibilizado entre os microdados do Censo Escolar
+      2019-2024 e as tabelas temáticas de 2025. Preserva colunas harmonizadas,
+      mantém sinais específicos de 2025 quando existem e adiciona flags de
+      compatibilidade temporal para análise de EM, NEM e educação profissional.
+    columns:
+      - name: ano
+        description: Ano censitário da observação escola/ano.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município da escola.
+        tests:
+          - not_null
+      - name: id_escola
+        description: Código da escola no Censo Escolar.
+        tests:
+          - not_null
+      - name: fonte_censo
+        description: Layout de origem usado para a harmonização da linha.
+        tests:
+          - accepted_values:
+              values: [microdados_ed_basica_2019_2024, tabelas_tematicas_2025]
+      - name: periodo_nem
+        description: Recorte temporal analítico relativo ao NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+      - name: in_med_compat
+        description: Indicador compatibilizado de oferta de ensino médio entre 2019 e 2025.
+      - name: in_prof_tec_compat
+        description: Indicador compatibilizado de presença de oferta técnico-profissional.
+      - name: qt_mat_med_compat
+        description: Quantidade compatível de matrículas do ensino médio.
+      - name: qt_mat_med_int_compat
+        description: Quantidade compatível de matrículas do ensino médio em tempo integral.
+
+  - name: int_censo_curso_tecnico_escola_ano_2023_2025
+    description: >
+      Agregação escola/ano do histórico de cursos técnicos 2023-2025. Resume
+      cursos, áreas, matrículas e modalidades técnicas, preservando o vínculo
+      com município e escola.
+    columns:
+      - name: ano
+        description: Ano censitário.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município da escola.
+        tests:
+          - not_null
+      - name: id_escola
+        description: Código da escola no Censo Escolar.
+        tests:
+          - not_null
+      - name: qt_cursos_tecnicos_distintos
+        description: Quantidade de cursos técnicos distintos na escola/ano.
+      - name: in_oferta_curso_tecnico
+        description: Flag de existência de oferta de curso técnico na escola/ano.
+
+  - name: int_municipio_ano_contexto
+    description: >
+      Painel município/ano de contexto territorial e socioeconômico. Reaplica o
+      contexto estático do IBGE 2022 a todo o painel 2019-2025, preservando o
+      PIB apenas nos anos em que ele existe.
+    columns:
+      - name: ano
+        description: Ano analítico do painel municipal.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: periodo_nem
+        description: Recorte temporal analítico relativo ao NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+      - name: tem_pib_no_ano
+        description: Flag indicando disponibilidade de PIB no ano corrente.
+      - name: taxa_alfabetizacao_detalhada_calculada
+        description: Taxa derivada a partir da base detalhada de alfabetização do IBGE.
+
+  - name: int_municipio_ano_oferta_educacional
+    description: >
+      Agregação município/ano do Censo Escolar compatibilizado. Resume oferta
+      escolar, infraestrutura, matrículas, docentes, turmas e razões
+      estruturais úteis para análise municipal.
+    columns:
+      - name: ano
+        description: Ano censitário agregado.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: qt_escolas
+        description: Quantidade de escolas no município/ano.
+      - name: qt_escolas_em
+        description: Quantidade de escolas com oferta compatível de ensino médio.
+      - name: prop_escolas_internet
+        description: Proporção de escolas com acesso à internet.
+      - name: media_matriculas_por_turma_em
+        description: Relação agregada entre matrículas e turmas de ensino médio.
+
+  - name: int_municipio_ano_nem
+    description: >
+      Agregação município/ano orientada ao ensino médio e aos sinais do NEM.
+      Resume integralidade, itinerários, articulação técnico-profissional e
+      estrutura docente/gestora associada ao EM.
+    columns:
+      - name: ano
+        description: Ano censitário agregado.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: prop_mat_em_integral
+        description: Proporção de matrículas do ensino médio em tempo integral.
+      - name: prop_mat_em_tecnico_profissional
+        description: Proporção de matrículas do ensino médio ligadas ao eixo técnico-profissional.
+      - name: prop_escolas_itinerario_tecn_prof
+        description: Proporção de escolas de EM com sinal de itinerário técnico-profissional.
+
+  - name: int_municipio_ano_tecnico
+    description: >
+      Agregação município/ano do histórico de cursos técnicos. Resume escolas
+      com técnico, quantidade de cursos, áreas e matrículas por modalidade.
+    columns:
+      - name: ano
+        description: Ano censitário agregado.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: tem_historico_tecnico_no_ano
+        description: Flag que indica a disponibilidade histórica da fonte técnica no ano.
+      - name: prop_escolas_com_curso_tecnico
+        description: Proporção de escolas com oferta de curso técnico no município/ano.
+
+  - name: int_municipio_ano_saeb
+    description: >
+      Recorte municipal canônico do SAEB para integração analítica. Mantém
+      apenas dependência administrativa pública total e localização total,
+      priorizando comparabilidade com políticas educacionais.
+    columns:
+      - name: ano
+        description: Ano de aplicação do SAEB.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2019, 2021, 2023]
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: media_12_lp
+        description: Média SAEB de Língua Portuguesa no ensino médio tradicional.
+      - name: media_12_mt
+        description: Média SAEB de Matemática no ensino médio tradicional.
+      - name: delta_media_12_lp_mt
+        description: Variação da média simples LP/MT do ensino médio em relação à edição anterior disponível.
+
+
+  - name: int_municipio_ano_saeb_ciclo
+    description: >
+      Expansão do SAEB municipal observado para o ano da edição e o ano seguinte,
+      refletindo o uso bienal do resultado como referência diagnóstica do ciclo.
+    columns:
+      - name: ano
+        description: Ano analítico em que o resultado SAEB fica vigente no painel.
+        tests:
+          - not_null
+      - name: ano_saeb
+        description: Ano original da edição do SAEB que alimenta o ciclo.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [2019, 2021, 2023]
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: ano_vigencia_ciclo
+        description: Flag de linha válida como referência de ciclo anual.
+      - name: tem_saeb_no_ciclo
+        description: Flag de disponibilidade de SAEB vigente no ano analítico.
+
+  - name: int_municipio_ano_painel_educacional
+    description: >
+      Painel municipal consolidado 2019-2025 para suportar a camada final. Une
+      contexto territorial, oferta educacional, sinais do NEM, histórico
+      técnico e resultados do SAEB quando disponíveis.
+    columns:
+      - name: ano
+        description: Ano analítico do painel municipal consolidado.
+        tests:
+          - not_null
+      - name: id_municipio
+        description: Código IBGE do município.
+        tests:
+          - not_null
+      - name: periodo_nem
+        description: Recorte temporal analítico relativo ao NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+      - name: ano_saeb_referencia
+        description: Ano da edição SAEB usada como referência no ciclo do painel.
+      - name: tem_saeb_no_ano_flag
+        description: Flag de disponibilidade do SAEB vigente no painel consolidado.
+      - name: prop_mat_em_tecnico_profissional
+        description: Proporção de matrículas de EM ligadas ao eixo técnico-profissional.
+      - name: prop_escolas_com_curso_tecnico
+        description: Proporção de escolas com curso técnico no município/ano.
