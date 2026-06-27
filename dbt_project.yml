@@ -18,6 +18,8 @@ models:
   edu_impacto_nem_multimodal:
     staging:
       +materialized: view
+    intermediate:
+      +materialized: table
     serving:
       +materialized: table
 

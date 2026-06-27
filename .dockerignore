@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+node_modules
+target
+dbt_packages
+edu_impacto_nem_multimodal.duckdb
