@@ -12,13 +12,13 @@ O pipeline já tem a camada `staging` e a `intermediate` consolidadas e validada
 
 A tabela abaixo resume as limitações originais das fontes e o que foi feito na pipeline, principalmente na `staging` e na `intermediate`, para torná-las utilizáveis na análise.
 
-| Fonte | Limitação original | O que a pipeline resolveu | Garantia resultante |
-| --- | --- | --- | --- |
-| SAEB municipal | identificadores geográficos mascarados nos microdados | uso de resultados agregados por município e reconciliação com chaves territoriais auxiliares | cruzamento municipal viável sem expor microdados sensíveis |
-| Censo Escolar 2019-2024 | arquivo largo com colunas heterogêneas entre anos | padronização por escola/ano e compatibilização temporal na `intermediate` | série comparável para EB, EM e sinais do NEM |
-| Censo Escolar 2025 | mudança estrutural para tabelas temáticas separadas | territorialização por `id_escola` e junção das tabelas temáticas | base única escola/ano para matrícula, turma, docente, gestor e escola |
-| Cursos técnicos 2023-2025 | granularidade separada por curso/área e layout diferente em 2025 | unificação histórica e agregação escola/ano | leitura consistente da oferta técnica sem perder rastreabilidade |
-| IBGE e PIB | fontes estruturais com granularidade e periodicidade distintas | chaves municipais normalizadas e reaplicação do contexto IBGE 2022 no painel | contexto socioeconômico comparável ao longo de 2019-2025 |
+| Fonte                     | Limitação original                                               | O que a pipeline resolveu                                                                    | Garantia resultante                                                   |
+| ------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| SAEB municipal            | identificadores geográficos mascarados nos microdados            | uso de resultados agregados por município e reconciliação com chaves territoriais auxiliares | cruzamento municipal viável sem expor microdados sensíveis            |
+| Censo Escolar 2019-2024   | arquivo largo com colunas heterogêneas entre anos                | padronização por escola/ano e compatibilização temporal na `intermediate`                    | série comparável para EB, EM e sinais do NEM                          |
+| Censo Escolar 2025        | mudança estrutural para tabelas temáticas separadas              | territorialização por `id_escola` e junção das tabelas temáticas                             | base única escola/ano para matrícula, turma, docente, gestor e escola |
+| Cursos técnicos 2023-2025 | granularidade separada por curso/área e layout diferente em 2025 | unificação histórica e agregação escola/ano                                                  | leitura consistente da oferta técnica sem perder rastreabilidade      |
+| IBGE e PIB                | fontes estruturais com granularidade e periodicidade distintas   | chaves municipais normalizadas e reaplicação do contexto IBGE 2022 no painel                 | contexto socioeconômico comparável ao longo de 2019-2025              |
 
 Essas garantias se referem à pipeline construída. Elas não eliminam as limitações inerentes às fontes originais, mas tornam explícito o que foi harmonizado para uso analítico.
 
@@ -122,6 +122,8 @@ docker compose run --rm dbt dbt test --select staging intermediate --profiles-di
 ```
 
 A `intermediate` já foi validada com testes de cobertura municipal e reconciliação escola -> município. A partir daqui, o foco passa a ser a construção da `serving` com recortes orientados ao EM/NEM.
+
+Se você quiser uma inspeção visual da qualidade dos dados, use o notebook [notebooks/02_validacao_intermediate.ipynb](notebooks/02_validacao_intermediate.ipynb). Ele lê apenas `manifest.json` e o `information_schema`, e ajuda a inspecionar a estrutura e as garantias de qualidade da intermediate.
 
 Abrir um shell no container, montando o repositório inteiro em `/workspace`:
 
