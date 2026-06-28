@@ -1,0 +1,120 @@
+version: 2
+
+models:
+  - name: srv_municipio_ano_painel_educacional
+    description: >
+      Tabela final municipal mais ampla da serving. Consolida contexto IBGE,
+      PIB, alfabetização, oferta educacional, sinais do NEM, histórico técnico
+      e SAEB vigente no ciclo para consumo analítico e publicação.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: periodo_nem
+        description: Recorte temporal analítico do NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+      - name: tem_saeb_no_ano_flag
+        description: Flag indicando se o SAEB vigente no ciclo foi aplicado no ano.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+
+  - name: srv_municipio_ano_nem
+    description: >
+      Recorte municipal focado no Ensino Médio, NEM e variáveis de suporte.
+      É a tabela principal para correlações com SAEB, alfabetização e contexto.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: periodo_nem
+        description: Recorte temporal analítico do NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+
+  - name: srv_municipio_ano_tecnico
+    description: >
+      Visão municipal da educação profissional e técnica, com intensidade de
+      oferta e matrículas técnicas por município/ano.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: tem_historico_tecnico_no_ano
+        description: Flag de presença de oferta técnica histórica no município/ano.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+
+  - name: srv_escola_ano_em
+    description: >
+      Painel escola/ano do EM com enriquecimento municipal de contexto e SAEB.
+      Serve para análises de estrutura escolar, infraestrutura e desempenho.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: id_escola
+        description: Identificador da escola na base do Censo Escolar.
+        tests: [not_null]
+      - name: periodo_nem
+        description: Recorte temporal analítico do NEM.
+        tests:
+          - accepted_values:
+              values: [pre_nem, implementacao_nem, pos_nem]
+
+  - name: srv_escola_ano_tecnico
+    description: >
+      Painel escola/ano dos cursos técnicos, com contexto municipal, SAEB e
+      oferta técnica agregada por escola.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: id_escola
+        description: Identificador da escola na base do Censo Escolar.
+        tests: [not_null]
+      - name: in_oferta_curso_tecnico
+        description: Flag que indica se a escola ofertou curso técnico no ano.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+
+  - name: srv_escola_ano_em_tecnico
+    description: >
+      Visão combinada escola/ano para analisar o vínculo entre EM e técnico na
+      mesma escola, útil para estudar estrutura, permanência e possíveis
+      efeitos sobre matrícula e oferta.
+    columns:
+      - name: ano
+        description: Ano de análise da linha final.
+        tests: [not_null]
+      - name: id_municipio
+        description: Identificador IBGE do município.
+        tests: [not_null]
+      - name: id_escola
+        description: Identificador da escola na base do Censo Escolar.
+        tests: [not_null]
+      - name: tem_em_e_tecnico_no_mesmo_ano
+        description: Flag que indica coexistência de EM e técnico na mesma escola/ano.
+        tests:
+          - accepted_values:
+              values: [0, 1]

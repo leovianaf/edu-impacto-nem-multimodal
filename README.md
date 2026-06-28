@@ -7,18 +7,21 @@ O principal desafio de engenharia de dados deste trabalho foi contornar a mascar
 ## Estado Atual
 
 O pipeline já tem a camada `staging` e a `intermediate` consolidadas e validadas. A etapa seguinte é a `serving`/`gold`, com foco principal no Ensino Médio e na extração de indicadores analíticos para o NEM, mantendo o histórico técnico como enriquecimento da leitura.
+A `serving` deve espelhar esses dados em MongoDB e Neo4j sem reinventar a modelagem analítica; o Mongo funciona melhor como espelho das tabelas finais e o Neo4j como grafo derivado dessas mesmas saídas.
+
+Ainda não existe uma fonte explícita de abandono/reprovação escolar no pipeline, então esses indicadores continuam como lacuna até uma nova entrada na staging.
 
 ## Qualidade E Limitações
 
 A tabela abaixo resume as limitações originais das fontes e o que foi feito na pipeline, principalmente na `staging` e na `intermediate`, para torná-las utilizáveis na análise.
 
-| Fonte | Limitação original | O que a pipeline resolveu | Garantia resultante |
-| --- | --- | --- | --- |
-| SAEB municipal | identificadores geográficos mascarados nos microdados | uso de resultados agregados por município e reconciliação com chaves territoriais auxiliares | cruzamento municipal viável sem expor microdados sensíveis |
-| Censo Escolar 2019-2024 | arquivo largo com colunas heterogêneas entre anos | padronização por escola/ano e compatibilização temporal na `intermediate` | série comparável para EB, EM e sinais do NEM |
-| Censo Escolar 2025 | mudança estrutural para tabelas temáticas separadas | territorialização por `id_escola` e junção das tabelas temáticas | base única escola/ano para matrícula, turma, docente, gestor e escola |
-| Cursos técnicos 2023-2025 | granularidade separada por curso/área e layout diferente em 2025 | unificação histórica e agregação escola/ano | leitura consistente da oferta técnica sem perder rastreabilidade |
-| IBGE e PIB | fontes estruturais com granularidade e periodicidade distintas | chaves municipais normalizadas e reaplicação do contexto IBGE 2022 no painel | contexto socioeconômico comparável ao longo de 2019-2025 |
+| Fonte                     | Limitação original                                               | O que a pipeline resolveu                                                                    | Garantia resultante                                                   |
+| ------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| SAEB municipal            | identificadores geográficos mascarados nos microdados            | uso de resultados agregados por município e reconciliação com chaves territoriais auxiliares | cruzamento municipal viável sem expor microdados sensíveis            |
+| Censo Escolar 2019-2024   | arquivo largo com colunas heterogêneas entre anos                | padronização por escola/ano e compatibilização temporal na `intermediate`                    | série comparável para EB, EM e sinais do NEM                          |
+| Censo Escolar 2025        | mudança estrutural para tabelas temáticas separadas              | territorialização por `id_escola` e junção das tabelas temáticas                             | base única escola/ano para matrícula, turma, docente, gestor e escola |
+| Cursos técnicos 2023-2025 | granularidade separada por curso/área e layout diferente em 2025 | unificação histórica e agregação escola/ano                                                  | leitura consistente da oferta técnica sem perder rastreabilidade      |
+| IBGE e PIB                | fontes estruturais com granularidade e periodicidade distintas   | chaves municipais normalizadas e reaplicação do contexto IBGE 2022 no painel                 | contexto socioeconômico comparável ao longo de 2019-2025              |
 
 Essas garantias se referem à pipeline construída. Elas não eliminam as limitações inerentes às fontes originais, mas tornam explícito o que foi harmonizado para uso analítico.
 
@@ -106,22 +109,20 @@ Checar a instalação do dbt no container:
 docker compose run --rm dbt dbt --version
 ```
 
-Passo a passo mínimo para construir e validar a staging com Docker Compose:
+Fluxo único recomendado para construir e validar o pipeline via Docker Compose:
 
 ```bash
+docker compose build --no-cache dbt
+docker compose run --rm dbt dbt --version
 docker compose run --rm dbt dbt seed --profiles-dir .
-docker compose run --rm dbt dbt run --select staging --profiles-dir .
-docker compose run --rm dbt dbt test --select staging --profiles-dir .
+docker compose run --rm dbt dbt run --select staging intermediate serving --profiles-dir .
+docker compose run --rm dbt dbt test --select staging intermediate serving --profiles-dir .
 ```
 
-Depois de fechar a `staging`, o fluxo natural do projeto segue para a `intermediate`:
+Esse fluxo cobre toda a cadeia do projeto, da `staging` até a `serving`. Se quiser uma inspeção visual da qualidade dos dados, use:
 
-```bash
-docker compose run --rm dbt dbt run --select staging intermediate --profiles-dir .
-docker compose run --rm dbt dbt test --select staging intermediate --profiles-dir .
-```
-
-A `intermediate` já foi validada com testes de cobertura municipal e reconciliação escola -> município. A partir daqui, o foco passa a ser a construção da `serving` com recortes orientados ao EM/NEM.
+- [notebooks/02_validacao_intermediate.ipynb](notebooks/02_validacao_intermediate.ipynb), para inventário de `manifest.json` e `information_schema` da intermediate;
+- [notebooks/03_validacao_serving.ipynb](notebooks/03_validacao_serving.ipynb), para validar a `serving` e explorar os indicadores analíticos finais.
 
 Abrir um shell no container, montando o repositório inteiro em `/workspace`:
 
@@ -201,61 +202,11 @@ Execução:
 python scripts/converter_saeb.py
 ```
 
-### 5. Executar seeds e staging no dbt
+### 5. Executar o pipeline dbt
 
 O perfil já está configurado para usar um banco local DuckDB em `./edu_impacto_nem_multimodal.duckdb`.
 
-Se estiver usando Docker Compose, a ordem recomendada é:
-
-```bash
-docker compose build --no-cache dbt
-docker compose run --rm dbt dbt --version
-docker compose run --rm dbt dbt seed --profiles-dir .
-docker compose run --rm dbt dbt run --select staging --profiles-dir .
-docker compose run --rm dbt dbt test --select staging --profiles-dir .
-```
-
-Carregue as seeds auxiliares:
-
-Local:
-
-```bash
-dbt seed --profiles-dir .
-```
-
-Com Docker Compose:
-
-```bash
-docker compose run --rm dbt dbt seed --profiles-dir .
-```
-
-Rode apenas a camada staging:
-
-Local:
-
-```bash
-dbt run --select staging --profiles-dir .
-```
-
-Com Docker Compose:
-
-```bash
-docker compose run --rm dbt dbt run --select staging --profiles-dir .
-```
-
-Valide a camada staging:
-
-Local:
-
-```bash
-dbt test --select staging --profiles-dir .
-```
-
-Com Docker Compose:
-
-```bash
-docker compose run --rm dbt dbt test --select staging --profiles-dir .
-```
+Para rodar o projeto inteiro, use o fluxo único da seção 2 acima.
 
 Para inspecionar as tabelas/views da staging com Pandas:
 
@@ -271,27 +222,12 @@ python scripts/auditar_staging_pandas.py --table stg_ibge_pib_municipio --sample
 
 Esse script localiza o banco DuckDB na raiz do projeto automaticamente, então também pode ser executado de dentro da pasta `scripts/`.
 
-Resultado esperado da staging no estado atual do projeto:
+Resultado esperado do pipeline no estado atual do projeto:
 
-- 13 modelos materializados como views;
+- 13 modelos materializados como views na staging;
+- intermediate consolidada e serving materializada;
 - cobertura de SAEB, Censo Escolar 2019-2025, histórico técnico 2023-2025, PIB, IBGE municipal, alfabetização detalhada e diretório municipal;
 - banco local DuckDB criado em `edu_impacto_nem_multimodal.duckdb`.
-
-Para rodar todo o projeto dbt disponível:
-
-Local:
-
-```bash
-dbt run --profiles-dir .
-dbt test --profiles-dir .
-```
-
-Com Docker Compose:
-
-```bash
-docker compose run --rm dbt dbt run --profiles-dir .
-docker compose run --rm dbt dbt test --profiles-dir .
-```
 
 ### 6. Documentação da staging
 
@@ -310,6 +246,14 @@ Após a materialização da camada `serving` no DuckDB, a etapa seguinte da arqu
 ```bash
 python scripts/load_serving_nosql.py
 ```
+
+Se você quiser gerar o dicionário final da `serving` em Excel, rode:
+
+```bash
+python scripts/export_serving_dictionary.py
+```
+
+O arquivo será salvo em `docs/Dicionario_Serving.xlsx`, com uma aba de resumo e uma aba por tabela final.
 
 ## Estrutura do Projeto
 
@@ -336,6 +280,7 @@ edu-impacto-nem-multimodal/
 │   ├── Dicionario_Censo_Escolar_2023.xlsx
 │   ├── Dicionario_Censo_Escolar_2024.xlsx
 │   ├── Dicionario_Censo_Escolar_2025.xlsx
+│   ├── Dicionario_Serving.xlsx
 │   └── Dicionario_Resultados_Saeb_2023.csv
 ├── models/
 │   ├── staging/                            # Definição de fontes e padronização inicial
@@ -344,6 +289,7 @@ edu-impacto-nem-multimodal/
 │   └── serving/                            # Camada final para consumo analítico e publicação
 ├── scripts/
 │   ├── converter_saeb.py                   # Conversão de planilhas SAEB para CSV compactado
+│   ├── export_serving_dictionary.py        # Exportação do dicionário da serving para Excel
 │   └── load_gold_nosql.py                  # Publicação da camada serving em MongoDB e Neo4j
 ├── seeds/
 │   ├── br_bd_diretorios_brasil_municipio.csv
