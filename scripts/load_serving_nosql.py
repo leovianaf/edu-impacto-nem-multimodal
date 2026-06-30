@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import argparse
 import os
 from pathlib import Path
+from typing import Iterator
 
 import duckdb
-import pandas as pd
+from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from pymongo import MongoClient, ReplaceOne
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(PROJECT_ROOT / '.env')
+
 DUCKDB_PATH = PROJECT_ROOT / 'edu_impacto_nem_multimodal.duckdb'
 SERVING_TABLES = [
     'srv_municipio_ano_painel_educacional',
@@ -23,150 +27,240 @@ MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
 MONGO_DB = os.getenv('MONGO_DB', 'edu_impacto_nem')
 NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7687')
 NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
-NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'neo4j')
+NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'eduimpacto')
+BATCH_SIZE = int(os.getenv('NOSQL_BATCH_SIZE', '1000'))
+
+if BATCH_SIZE <= 0:
+    raise ValueError('NOSQL_BATCH_SIZE deve ser maior que zero')
 
 
-def read_table(con: duckdb.DuckDBPyConnection, table_name: str) -> pd.DataFrame:
-    return con.execute(f'select * from {table_name}').fetchdf()
+def iter_query_batches(
+    con: duckdb.DuckDBPyConnection,
+    query: str,
+    batch_size: int = BATCH_SIZE,
+) -> Iterator[list[dict]]:
+    """Lê o resultado em lotes sem materializar a tabela inteira em memória."""
+    cursor = con.execute(query)
+    columns = [column[0] for column in cursor.description]
+    while rows := cursor.fetchmany(batch_size):
+        yield [dict(zip(columns, row)) for row in rows]
 
 
-def clean_records(df: pd.DataFrame) -> list[dict]:
-    return df.where(pd.notnull(df), None).to_dict('records')
+def run_neo4j_batches(
+    session,
+    query: str,
+    records: Iterator[list[dict]],
+    label: str,
+) -> None:
+    total = 0
+    for batch_number, batch in enumerate(records, start=1):
+        session.run(query, rows=batch).consume()
+        total += len(batch)
+        print(f'Neo4j: {label} - lote {batch_number} ({len(batch)} registros)', flush=True)
+    print(f'Neo4j: {label} - total {total} registros', flush=True)
 
 
 def export_mongo(con: duckdb.DuckDBPyConnection) -> None:
-    client = MongoClient(MONGO_URI)
-    db = client[MONGO_DB]
-
     keys_by_table = {
         'srv_municipio_ano_painel_educacional': ['ano', 'id_municipio'],
         'srv_municipio_ano_nem': ['ano', 'id_municipio'],
         'srv_municipio_ano_tecnico': ['ano', 'id_municipio'],
         'srv_escola_ano_em': ['ano', 'id_municipio', 'id_escola'],
-        'srv_escola_ano_tecnico': ['ano', 'id_municipio', 'id_escola', 'id_area_curso_profissional', 'co_curso_educ_profissional'],
+        'srv_escola_ano_tecnico': ['ano', 'id_municipio', 'id_escola'],
         'srv_escola_ano_em_tecnico': ['ano', 'id_municipio', 'id_escola'],
     }
 
-    for table_name in SERVING_TABLES:
-        df = read_table(con, table_name)
-        if df.empty:
-            continue
-        ops = []
-        for row in clean_records(df):
-            query = {key: row[key] for key in keys_by_table[table_name]}
-            ops.append(ReplaceOne(query, row, upsert=True))
-        if ops:
-            db[table_name].bulk_write(ops)
-
-    client.close()
+    with MongoClient(MONGO_URI) as client:
+        db = client[MONGO_DB]
+        for table_name in SERVING_TABLES:
+            collection = db[table_name]
+            collection.create_index(
+                [(key, 1) for key in keys_by_table[table_name]],
+                unique=True,
+                name='serving_natural_key',
+            )
+            total = 0
+            for batch_number, rows in enumerate(
+                iter_query_batches(con, f'select * from {table_name}'),
+                start=1,
+            ):
+                ops = [
+                    ReplaceOne(
+                        {key: row[key] for key in keys_by_table[table_name]},
+                        row,
+                        upsert=True,
+                    )
+                    for row in rows
+                ]
+                collection.bulk_write(ops, ordered=False)
+                total += len(rows)
+                print(
+                    f'MongoDB: {table_name} - lote {batch_number} '
+                    f'({len(rows)} registros)',
+                    flush=True,
+                )
+            print(f'MongoDB: {table_name} - total {total} registros', flush=True)
 
 
 def export_neo4j(con: duckdb.DuckDBPyConnection) -> None:
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
     with driver.session() as session:
-        session.run('CREATE CONSTRAINT municipio_id IF NOT EXISTS FOR (m:Municipio) REQUIRE m.id_municipio IS UNIQUE')
-        session.run('CREATE CONSTRAINT escola_id IF NOT EXISTS FOR (e:Escola) REQUIRE e.id_escola IS UNIQUE')
-        session.run('CREATE CONSTRAINT ano_id IF NOT EXISTS FOR (a:Ano) REQUIRE a.ano IS UNIQUE')
+        session.run('CREATE CONSTRAINT municipio_id IF NOT EXISTS FOR (m:Municipio) REQUIRE m.id_municipio IS UNIQUE').consume()
+        session.run('CREATE CONSTRAINT escola_id IF NOT EXISTS FOR (e:Escola) REQUIRE e.id_escola IS UNIQUE').consume()
+        session.run('CREATE CONSTRAINT ano_id IF NOT EXISTS FOR (a:Ano) REQUIRE a.ano IS UNIQUE').consume()
 
-        municipios = con.execute(
+        run_neo4j_batches(
+            session,
             """
-            select distinct id_municipio, nome_municipio, id_uf, sigla_uf, nome_uf, nome_regiao, capital_uf, amazonia_legal
-            from srv_municipio_ano_painel_educacional
-            """
-        ).fetchdf()
-        for row in clean_records(municipios):
-            session.run(
+            UNWIND $rows AS row
+            MERGE (m:Municipio {id_municipio: row.id_municipio})
+            SET m.nome_municipio = row.nome_municipio,
+                m.id_uf = row.id_uf,
+                m.sigla_uf = row.sigla_uf,
+                m.nome_uf = row.nome_uf,
+                m.nome_regiao = row.nome_regiao,
+                m.capital_uf = row.capital_uf,
+                m.amazonia_legal = row.amazonia_legal
+            """,
+            iter_query_batches(
+                con,
                 """
-                MERGE (m:Municipio {id_municipio: $id_municipio})
-                SET m.nome_municipio = $nome_municipio,
-                    m.id_uf = $id_uf,
-                    m.sigla_uf = $sigla_uf,
-                    m.nome_uf = $nome_uf,
-                    m.nome_regiao = $nome_regiao,
-                    m.capital_uf = $capital_uf,
-                    m.amazonia_legal = $amazonia_legal
+                select distinct id_municipio, nome_municipio, id_uf, sigla_uf,
+                                nome_uf, nome_regiao, capital_uf, amazonia_legal
+                from srv_municipio_ano_painel_educacional
                 """,
-                **row,
-            )
-
-        anos = con.execute('select distinct ano from srv_municipio_ano_painel_educacional').fetchdf()
-        for row in clean_records(anos):
-            session.run('MERGE (a:Ano {ano: $ano})', **row)
-
-        municipios_ano = con.execute(
+            ),
+            'municípios',
+        )
+        run_neo4j_batches(
+            session,
+            'UNWIND $rows AS row MERGE (a:Ano {ano: row.ano})',
+            iter_query_batches(
+                con,
+                'select distinct ano from srv_municipio_ano_painel_educacional',
+            ),
+            'anos',
+        )
+        run_neo4j_batches(
+            session,
             """
-            select ano, id_municipio, periodo_nem, tem_saeb_no_ano_flag, prop_mat_em_tecnico_profissional, prop_escolas_com_curso_tecnico
-            from srv_municipio_ano_painel_educacional
-            """
-        ).fetchdf()
-        for row in clean_records(municipios_ano):
-            session.run(
+            UNWIND $rows AS row
+            MATCH (m:Municipio {id_municipio: row.id_municipio})
+            MATCH (a:Ano {ano: row.ano})
+            MERGE (m)-[r:PAINEL_MUNICIPAL]->(a)
+            SET r.periodo_nem = row.periodo_nem,
+                r.tem_saeb_no_ano_flag = row.tem_saeb_no_ano_flag,
+                r.prop_mat_em_tecnico_profissional = row.prop_mat_em_tecnico_profissional,
+                r.prop_escolas_com_curso_tecnico = row.prop_escolas_com_curso_tecnico
+            """,
+            iter_query_batches(
+                con,
                 """
-                MATCH (m:Municipio {id_municipio: $id_municipio})
-                MATCH (a:Ano {ano: $ano})
-                MERGE (m)-[r:PAINEL_MUNICIPAL]->(a)
-                SET r.periodo_nem = $periodo_nem,
-                    r.tem_saeb_no_ano_flag = $tem_saeb_no_ano_flag,
-                    r.prop_mat_em_tecnico_profissional = $prop_mat_em_tecnico_profissional,
-                    r.prop_escolas_com_curso_tecnico = $prop_escolas_com_curso_tecnico
+                select ano, id_municipio, periodo_nem, tem_saeb_no_ano_flag,
+                       prop_mat_em_tecnico_profissional,
+                       prop_escolas_com_curso_tecnico
+                from srv_municipio_ano_painel_educacional
                 """,
-                **row,
-            )
-
-        escolas = con.execute(
+            ),
+            'painéis municipais',
+        )
+        run_neo4j_batches(
+            session,
             """
-            select distinct id_escola, no_entidade, id_municipio, nome_municipio, sigla_uf
-            from srv_escola_ano_em_tecnico
-            """
-        ).fetchdf()
-        for row in clean_records(escolas):
-            session.run(
+            UNWIND $rows AS row
+            MERGE (e:Escola {id_escola: row.id_escola})
+            SET e.no_entidade = row.no_entidade,
+                e.id_municipio = row.id_municipio,
+                e.nome_municipio = row.nome_municipio,
+                e.sigla_uf = row.sigla_uf
+            WITH e, row
+            MATCH (m:Municipio {id_municipio: row.id_municipio})
+            MERGE (e)-[:PERTENCE_A]->(m)
+            """,
+            iter_query_batches(
+                con,
                 """
-                MERGE (e:Escola {id_escola: $id_escola})
-                SET e.no_entidade = $no_entidade,
-                    e.id_municipio = $id_municipio,
-                    e.nome_municipio = $nome_municipio,
-                    e.sigla_uf = $sigla_uf
+                select distinct id_escola, no_entidade, id_municipio,
+                                nome_municipio, sigla_uf
+                from srv_escola_ano_em_tecnico
                 """,
-                **row,
-            )
-            session.run(
-                """
-                MATCH (e:Escola {id_escola: $id_escola})
-                MATCH (m:Municipio {id_municipio: $id_municipio})
-                MERGE (e)-[:PERTENCE_A]->(m)
-                """,
-                **row,
-            )
-
-        escola_ano = con.execute(
+            ),
+            'escolas e municípios',
+        )
+        run_neo4j_batches(
+            session,
             """
-            select ano, id_escola, id_municipio, tem_em_e_tecnico_no_mesmo_ano, tem_em_e_tecnico_no_nem
-            from srv_escola_ano_em_tecnico
-            """
-        ).fetchdf()
-        for row in clean_records(escola_ano):
-            session.run(
+            UNWIND $rows AS row
+            MATCH (e:Escola {id_escola: row.id_escola})
+            MATCH (a:Ano {ano: row.ano})
+            MERGE (e)-[r:OFERTA_EM_TECNICO]->(a)
+            SET r.tem_em_e_tecnico_no_mesmo_ano = row.tem_em_e_tecnico_no_mesmo_ano,
+                r.tem_em_e_tecnico_no_nem = row.tem_em_e_tecnico_no_nem,
+                r.id_municipio = row.id_municipio
+            """,
+            iter_query_batches(
+                con,
                 """
-                MATCH (e:Escola {id_escola: $id_escola})
-                MATCH (a:Ano {ano: $ano})
-                MERGE (e)-[r:OFERTA_EM_TECNICO]->(a)
-                SET r.tem_em_e_tecnico_no_mesmo_ano = $tem_em_e_tecnico_no_mesmo_ano,
-                    r.tem_em_e_tecnico_no_nem = $tem_em_e_tecnico_no_nem,
-                    r.id_municipio = $id_municipio
+                select ano, id_escola, id_municipio,
+                       tem_em_e_tecnico_no_mesmo_ano, tem_em_e_tecnico_no_nem
+                from srv_escola_ano_em_tecnico
                 """,
-                **row,
-            )
-
+            ),
+            'ofertas por escola e ano',
+        )
     driver.close()
 
 
+def validate(con: duckdb.DuckDBPyConnection) -> None:
+    missing = [
+        table
+        for table in SERVING_TABLES
+        if con.execute(
+            'select count(*) from information_schema.tables where table_name = ?',
+            [table],
+        ).fetchone()[0] == 0
+    ]
+    if missing:
+        raise RuntimeError(f'Tabelas serving ausentes: {", ".join(missing)}')
+
+    with MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000) as client:
+        client.admin.command('ping')
+    print('MongoDB: conexão OK', flush=True)
+
+    with GraphDatabase.driver(
+        NEO4J_URI,
+        auth=(NEO4J_USER, NEO4J_PASSWORD),
+        connection_timeout=5,
+    ) as driver:
+        driver.verify_connectivity()
+    print('Neo4j: conexão OK', flush=True)
+
+    for table in SERVING_TABLES:
+        count = con.execute(f'select count(*) from {table}').fetchone()[0]
+        print(f'DuckDB: {table} - {count} registros', flush=True)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description='Publica a camada serving do DuckDB no MongoDB e Neo4j.',
+    )
+    parser.add_argument(
+        '--check-only',
+        action='store_true',
+        help='Valida tabelas e conexões sem gravar dados.',
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
     if not DUCKDB_PATH.exists():
         raise FileNotFoundError(f'DuckDB não encontrado em {DUCKDB_PATH}')
-    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
-    export_mongo(con)
-    export_neo4j(con)
+    with duckdb.connect(str(DUCKDB_PATH), read_only=True) as con:
+        validate(con)
+        if not args.check_only:
+            export_mongo(con)
+            export_neo4j(con)
 
 
 if __name__ == '__main__':
