@@ -255,12 +255,13 @@ docker compose ps
 
 Aguarde até que `mongodb` e `neo4j` apareçam como `healthy`. O arquivo `edu_impacto_nem_multimodal.duckdb` deve existir na raiz do projeto e conter as seis tabelas `srv_*`.
 
+Crie o `.env` a partir de `.env.example` e preencha todas as variáveis obrigatórias: `MONGO_URI`, `MONGO_DB`, `NEO4J_URI`, `NEO4J_USER` e `NEO4J_PASSWORD`. Para execução dentro do Compose, as URIs devem apontar para os serviços `mongodb` e `neo4j`, não para `localhost`. O arquivo é injetado no contêiner com `--env-from-file .env`.
+
 #### 7.2 Validar sem gravar dados
 
 ```bash
 docker compose run --rm \
-  -e MONGO_URI=mongodb://mongodb:27017 \
-  -e NEO4J_URI=bolt://neo4j:7687 \
+  --env-from-file .env \
   dbt python scripts/load_serving_nosql.py --check-only
 ```
 
@@ -275,8 +276,7 @@ O modo `--check-only`:
 
 ```bash
 docker compose run --rm \
-  -e MONGO_URI=mongodb://mongodb:27017 \
-  -e NEO4J_URI=bolt://neo4j:7687 \
+  --env-from-file .env \
   dbt python scripts/load_serving_nosql.py
 ```
 
@@ -294,8 +294,7 @@ A leitura usa `fetchmany` e mantém apenas um lote em memória. O tamanho padrã
 
 ```bash
 docker compose run --rm \
-  -e MONGO_URI=mongodb://mongodb:27017 \
-  -e NEO4J_URI=bolt://neo4j:7687 \
+  --env-from-file .env \
   -e NOSQL_BATCH_SIZE=500 \
   dbt python scripts/load_serving_nosql.py
 ```

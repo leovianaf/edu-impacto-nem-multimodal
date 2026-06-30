@@ -23,11 +23,25 @@ SERVING_TABLES = [
     'srv_escola_ano_em_tecnico',
 ]
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
-MONGO_DB = os.getenv('MONGO_DB', 'edu_impacto_nem')
-NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://localhost:7687')
-NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
-NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'eduimpacto')
+REQUIRED_ENV_VARS = (
+    'MONGO_URI',
+    'MONGO_DB',
+    'NEO4J_URI',
+    'NEO4J_USER',
+    'NEO4J_PASSWORD',
+)
+missing_env_vars = [name for name in REQUIRED_ENV_VARS if not os.getenv(name)]
+if missing_env_vars:
+    raise RuntimeError(
+        'Variáveis de ambiente obrigatórias ausentes ou vazias: '
+        + ', '.join(missing_env_vars)
+    )
+
+MONGO_URI = os.environ['MONGO_URI']
+MONGO_DB = os.environ['MONGO_DB']
+NEO4J_URI = os.environ['NEO4J_URI']
+NEO4J_USER = os.environ['NEO4J_USER']
+NEO4J_PASSWORD = os.environ['NEO4J_PASSWORD']
 BATCH_SIZE = int(os.getenv('NOSQL_BATCH_SIZE', '1000'))
 
 if BATCH_SIZE <= 0:
