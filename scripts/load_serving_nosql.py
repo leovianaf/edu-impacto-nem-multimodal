@@ -164,15 +164,38 @@ def export_neo4j(con: duckdb.DuckDBPyConnection) -> None:
             MERGE (m)-[r:PAINEL_MUNICIPAL]->(a)
             SET r.periodo_nem = row.periodo_nem,
                 r.tem_saeb_no_ano_flag = row.tem_saeb_no_ano_flag,
+                r.in_ano_edicao_saeb = row.in_ano_edicao_saeb,
+                r.qt_escolas_em = row.qt_escolas_em,
+                r.qt_mat_med = row.qt_mat_med,
+                r.qt_mat_prof_tec = row.qt_mat_prof_tec,
+                r.prop_mat_em_integral = row.prop_mat_em_integral,
+                r.prop_escolas_prof_tec = row.prop_escolas_prof_tec,
+                r.pib_per_capita = row.pib_per_capita,
+                r.taxa_alfabetizacao = row.taxa_alfabetizacao,
                 r.prop_mat_em_tecnico_profissional = row.prop_mat_em_tecnico_profissional,
-                r.prop_escolas_com_curso_tecnico = row.prop_escolas_com_curso_tecnico
+                r.prop_escolas_em_integral = row.prop_escolas_em_integral,
+                r.prop_escolas_itinerario_tecn_prof = row.prop_escolas_itinerario_tecn_prof,
+                r.prop_escolas_com_curso_tecnico = row.prop_escolas_com_curso_tecnico,
+                r.media_12_lp = row.media_12_lp,
+                r.media_12_mt = row.media_12_mt,
+                r.media_12_lp_mt = row.media_12_lp_mt,
+                r.delta_media_12_lp = row.delta_media_12_lp,
+                r.delta_media_12_mt = row.delta_media_12_mt,
+                r.delta_media_12_lp_mt = row.delta_media_12_lp_mt
             """,
             iter_query_batches(
                 con,
                 """
                 select ano, id_municipio, periodo_nem, tem_saeb_no_ano_flag,
+                       in_ano_edicao_saeb, qt_escolas_em, qt_mat_med,
+                       qt_mat_prof_tec, prop_mat_em_integral,
+                       prop_escolas_prof_tec, pib_per_capita, taxa_alfabetizacao,
                        prop_mat_em_tecnico_profissional,
-                       prop_escolas_com_curso_tecnico
+                       prop_escolas_em_integral,
+                       prop_escolas_itinerario_tecn_prof,
+                       prop_escolas_com_curso_tecnico,
+                       media_12_lp, media_12_mt, media_12_lp_mt,
+                       delta_media_12_lp, delta_media_12_mt, delta_media_12_lp_mt
                 from srv_municipio_ano_painel_educacional
                 """,
             ),
@@ -210,12 +233,21 @@ def export_neo4j(con: duckdb.DuckDBPyConnection) -> None:
             MERGE (e)-[r:OFERTA_EM_TECNICO]->(a)
             SET r.tem_em_e_tecnico_no_mesmo_ano = row.tem_em_e_tecnico_no_mesmo_ano,
                 r.tem_em_e_tecnico_no_nem = row.tem_em_e_tecnico_no_nem,
-                r.id_municipio = row.id_municipio
+                r.id_municipio = row.id_municipio,
+                r.in_med_padronizado = row.in_med_padronizado,
+                r.in_prof_tec = row.in_prof_tec,
+                r.prop_mat_em_integral_escola = row.prop_mat_em_integral_escola,
+                r.qt_mat_med = row.qt_mat_med_compat,
+                r.in_internet_aprendizagem = row.in_internet_aprendizagem,
+                r.in_biblioteca = row.in_biblioteca,
+                r.in_laboratorio_ciencias = row.in_laboratorio_ciencias
             """,
             iter_query_batches(
                 con,
                 """
-                select ano, id_escola, id_municipio,
+                select ano, id_escola, id_municipio, in_med_padronizado,
+                       in_prof_tec, prop_mat_em_integral_escola, qt_mat_med_compat,
+                       in_internet_aprendizagem, in_biblioteca, in_laboratorio_ciencias,
                        tem_em_e_tecnico_no_mesmo_ano, tem_em_e_tecnico_no_nem
                 from srv_escola_ano_em_tecnico
                 """,
@@ -263,6 +295,12 @@ def parse_args() -> argparse.Namespace:
         action='store_true',
         help='Valida tabelas e conexões sem gravar dados.',
     )
+    parser.add_argument(
+        '--target',
+        choices=('all', 'mongodb', 'neo4j'),
+        default='all',
+        help='Destino da publicação (padrão: all).',
+    )
     return parser.parse_args()
 
 
@@ -273,8 +311,10 @@ def main() -> None:
     with duckdb.connect(str(DUCKDB_PATH), read_only=True) as con:
         validate(con)
         if not args.check_only:
-            export_mongo(con)
-            export_neo4j(con)
+            if args.target in ('all', 'mongodb'):
+                export_mongo(con)
+            if args.target in ('all', 'neo4j'):
+                export_neo4j(con)
 
 
 if __name__ == '__main__':
