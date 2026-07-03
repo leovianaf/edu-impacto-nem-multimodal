@@ -11,3 +11,42 @@ services:
       DBT_PROFILES_DIR: /workspace
     stdin_open: true
     tty: true
+
+  mongodb:
+    image: mongo:8.0
+    container_name: edu-impacto-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: edu-impacto-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/eduimpacto
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mongodb_data:
+  neo4j_data:

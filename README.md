@@ -6,8 +6,9 @@ O principal desafio de engenharia de dados deste trabalho foi contornar a mascar
 
 ## Estado Atual
 
-O pipeline já tem a camada `staging` e a `intermediate` consolidadas e validadas. A etapa seguinte é a `serving`/`gold`, com foco principal no Ensino Médio e na extração de indicadores analíticos para o NEM, mantendo o histórico técnico como enriquecimento da leitura.
-A `serving` deve espelhar esses dados em MongoDB e Neo4j sem reinventar a modelagem analítica; o Mongo funciona melhor como espelho das tabelas finais e o Neo4j como grafo derivado dessas mesmas saídas.
+O pipeline possui as camadas `staging`, `intermediate` e `serving` consolidadas e validadas. A serving concentra os indicadores analíticos de Ensino Médio e NEM, enriquecidos pelo histórico de educação técnica, e pode ser publicada nos bancos de consumo pelo script `scripts/load_serving_nosql.py`.
+
+O MongoDB recebe um espelho documental das seis tabelas finais. O Neo4j recebe um grafo derivado dessas mesmas saídas, com municípios, escolas, anos e seus relacionamentos. A publicação usa lotes e operações idempotentes para permitir nova execução sem duplicar registros.
 
 Ainda não existe uma fonte explícita de abandono/reprovação escolar no pipeline, então esses indicadores continuam como lacuna até uma nova entrada na staging.
 
@@ -63,8 +64,9 @@ O fluxo de dados foi desenhado para isolar claramente ingestão, padronização 
    - Seeds em `seeds/` fornecem dados auxiliares estruturados, como códigos municipais, PIB e bases do IBGE.
 
 4. **Persistência e consumo analítico**
-   - A camada final consolida insumos para análise estatística, exploração em ferramentas de consumo e publicação multimodal.
-   - Quando a `serving`/`gold` estiver pronta, os dados podem ser enviados para MongoDB e Neo4j.
+   - A camada `serving` consolida os produtos finais para análise estatística e publicação multimodal.
+   - `scripts/load_serving_nosql.py` espelha as tabelas finais no MongoDB e deriva o grafo de municípios, escolas e anos no Neo4j.
+   - A leitura do DuckDB e a escrita nos bancos ocorrem em lotes para manter o consumo de memória limitado.
 
 ## Como Rodar
 
@@ -82,7 +84,7 @@ Opção B, recomendada para ETL:
 - Docker
 - Docker Compose
 
-MongoDB e Neo4j não são pré-requisitos nesta etapa. Eles entram depois, quando a camada `gold/serving` estiver pronta para publicação.
+MongoDB e Neo4j são necessários somente para a etapa final de publicação da serving. O `docker-compose.yml` fornece os dois serviços.
 
 ### 2. Subir ambiente dbt + DuckDB
 
@@ -241,11 +243,82 @@ A documentação das decisões da staging está em [docs/staging_decisoes.md](do
 
 ### 7. Publicar a camada serving em MongoDB e Neo4j
 
-Após a materialização da camada `serving` no DuckDB, a etapa seguinte da arquitetura consiste na publicação dos dados para as bases de consumo final.
+Após materializar e testar a `serving` no DuckDB, publique os dados nos bancos de consumo final. O fluxo recomendado executa o script dentro do serviço `dbt`, usando a rede interna do Compose.
+
+#### 7.1 Preparar os serviços
 
 ```bash
-python scripts/load_serving_nosql.py
+docker compose build dbt
+docker compose up -d mongodb neo4j
+docker compose ps
 ```
+
+Aguarde até que `mongodb` e `neo4j` apareçam como `healthy`. O arquivo `edu_impacto_nem_multimodal.duckdb` deve existir na raiz do projeto e conter as seis tabelas `srv_*`.
+
+Crie o `.env` a partir de `.env.example` e preencha todas as variáveis obrigatórias: `MONGO_URI`, `MONGO_DB`, `NEO4J_URI`, `NEO4J_USER` e `NEO4J_PASSWORD`. Para execução dentro do Compose, as URIs devem apontar para os serviços `mongodb` e `neo4j`, não para `localhost`. O arquivo é injetado no contêiner com `--env-from-file .env`.
+
+#### 7.2 Validar sem gravar dados
+
+```bash
+docker compose run --rm \
+  --env-from-file .env \
+  dbt python scripts/load_serving_nosql.py --check-only
+```
+
+O modo `--check-only`:
+
+- verifica se o arquivo DuckDB e as seis tabelas serving existem;
+- testa a conexão e autenticação no MongoDB e no Neo4j;
+- exibe a contagem de registros de cada tabela;
+- não cria, substitui ou remove documentos, nós ou relacionamentos.
+
+#### 7.3 Executar a publicação
+
+```bash
+docker compose run --rm \
+  --env-from-file .env \
+  dbt python scripts/load_serving_nosql.py
+```
+
+Os nomes `mongodb` e `neo4j` são os endereços DNS dos serviços na rede interna do Compose. Não use `localhost` nesse comando: dentro do contêiner `dbt`, `localhost` apontaria para o próprio contêiner.
+
+O carregador executa as seguintes etapas:
+
+1. valida o DuckDB e as conexões com os bancos;
+2. publica as seis tabelas `srv_*` como coleções no MongoDB;
+3. cria índices únicos baseados nas chaves naturais de município/ano ou escola/ano;
+4. cria no Neo4j os nós `Municipio`, `Escola` e `Ano`;
+5. cria os relacionamentos `PAINEL_MUNICIPAL`, `PERTENCE_A` e `OFERTA_EM_TECNICO`.
+
+A leitura usa `fetchmany` e mantém apenas um lote em memória. O tamanho padrão é de 1.000 registros e pode ser alterado com `NOSQL_BATCH_SIZE`:
+
+```bash
+docker compose run --rm \
+  --env-from-file .env \
+  -e NOSQL_BATCH_SIZE=500 \
+  dbt python scripts/load_serving_nosql.py
+```
+
+Reduza o lote se a máquina continuar sob pressão de memória. Lotes menores reduzem o pico de RAM, mas aumentam o número de operações e o tempo total.
+
+#### 7.4 Acompanhar e retomar
+
+O terminal mostra o número do lote, a quantidade enviada e o total processado em cada tabela ou conjunto de nós. Em outro terminal, acompanhe os contêineres com:
+
+```bash
+docker stats edu-impacto-mongodb edu-impacto-neo4j
+```
+
+A publicação usa `upsert` no MongoDB e `MERGE` no Neo4j. Se o processo for interrompido, o mesmo comando pode ser executado novamente: registros já publicados são atualizados, não duplicados. O script sempre percorre as tabelas desde o início; ele não mantém checkpoint por lote.
+
+Para conferir as coleções após a execução:
+
+```bash
+docker compose exec mongodb mongosh --quiet --eval \
+  'const d=db.getSiblingDB("edu_impacto_nem"); d.getCollectionNames().sort().forEach(n => print(n + ": " + d[n].countDocuments({})))'
+```
+
+Para executar o script diretamente na máquina host, copie `.env.example` para `.env`, instale `requirements.txt` e use as URLs com `localhost`. Essa alternativa depende do ambiente Python local; o fluxo pelo Compose é o recomendado.
 
 Se você quiser gerar o dicionário final da `serving` em Excel, rode:
 
@@ -290,7 +363,7 @@ edu-impacto-nem-multimodal/
 ├── scripts/
 │   ├── converter_saeb.py                   # Conversão de planilhas SAEB para CSV compactado
 │   ├── export_serving_dictionary.py        # Exportação do dicionário da serving para Excel
-│   └── load_gold_nosql.py                  # Publicação da camada serving em MongoDB e Neo4j
+│   └── load_serving_nosql.py               # Publicação em lotes no MongoDB e Neo4j
 ├── seeds/
 │   ├── br_bd_diretorios_brasil_municipio.csv
 │   ├── br_ibge_censo_2022_municipio.csv
