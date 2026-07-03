@@ -21,9 +21,10 @@ logs/
 
 # Data folders
 data/raw/*
-data/processed/*
+data/processed/no_sql_exports/*
 data/interim/*
 !data/raw/.gitkeep
+!data/processed/no_sql_exports/.gitkeep
 !seeds/*
 !docs/*
 

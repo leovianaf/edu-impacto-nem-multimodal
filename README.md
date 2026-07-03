@@ -280,6 +280,22 @@ docker compose run --rm \
   dbt python scripts/load_serving_nosql.py
 ```
 
+Por padrão, `--target all` publica nos dois bancos. Para publicar somente um destino, use:
+
+```bash
+# Somente MongoDB
+docker compose run --rm \
+  --env-from-file .env \
+  dbt python scripts/load_serving_nosql.py --target mongodb
+
+# Somente Neo4j
+docker compose run --rm \
+  --env-from-file .env \
+  dbt python scripts/load_serving_nosql.py --target neo4j
+```
+
+Os valores aceitos por `--target` são `all`, `mongodb` e `neo4j`. A opção é útil para republicar apenas o grafo ou apenas as coleções após uma mudança específica, sem reescrever o outro banco.
+
 Os nomes `mongodb` e `neo4j` são os endereços DNS dos serviços na rede interna do Compose. Não use `localhost` nesse comando: dentro do contêiner `dbt`, `localhost` apontaria para o próprio contêiner.
 
 O carregador executa as seguintes etapas:
