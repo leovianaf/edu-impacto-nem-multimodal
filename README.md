@@ -4,6 +4,10 @@ Repositório técnico para ingestão, padronização e análise de dados educaci
 
 O principal desafio de engenharia de dados deste trabalho foi contornar a mascaragem dos códigos geográficos nos microdados do SAEB. Para isso, o pipeline foi estruturado para utilizar planilhas agregadas de resultados por município e reconciliá-las com bases auxiliares e microdados do Censo Escolar, preservando rastreabilidade, reprodutibilidade, respeito à LGPD e consistência analítica.
 
+## Dataset Publicado
+
+O dataset analítico final, seu dicionário de dados e os metadados de qualidade estão disponíveis no [Zenodo](https://zenodo.org/records/21211656).
+
 ## Estado Atual
 
 O pipeline possui as camadas `staging`, `intermediate` e `serving` consolidadas e validadas. A serving concentra os indicadores analíticos de Ensino Médio e NEM, enriquecidos pelo histórico de educação técnica, e pode ser publicada nos bancos de consumo pelo script `scripts/load_serving_nosql.py`.
